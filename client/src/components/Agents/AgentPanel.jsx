@@ -2,7 +2,7 @@ import React from 'react';
 import AgentList from './AgentList';
 import AgentLog from './AgentLog';
 
-const AgentPanel = () => {
+const AgentPanel = ({ agents = [], logs = [] }) => {
   return (
     <div className="agent-panel" style={{
       position: 'absolute',
@@ -20,10 +20,10 @@ const AgentPanel = () => {
       zIndex: 10
     }}>
       <h2 style={{ fontSize: '1.2rem', marginBottom: '20px', color: '#fff' }}>Personnel</h2>
-      <AgentList />
+      <AgentList agents={agents} />
       <div style={{ flex: 1 }} />
       <h3 style={{ fontSize: '0.9rem', marginBottom: '10px', color: '#888' }}>Live Logs</h3>
-      <AgentLog />
+      <AgentLog logs={logs} />
     </div>
   );
 };

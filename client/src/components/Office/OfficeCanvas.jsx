@@ -9,6 +9,7 @@ import { OrbitControls, PerspectiveCamera, Environment, ContactShadows } from '@
 import AgentDot from './AgentDot';
 import TheArchivist from '../Hidden/TheArchivist';
 import TheIntern from '../Hidden/TheIntern';
+import DeskGrid from './DeskGrid';
 
 const OfficeCanvas = ({ agents: socketAgents = [], logs = [], thirdWallAgent = null }) => {
   const [selectedAgent, setSelectedAgent] = useState(null);
@@ -108,19 +109,8 @@ const OfficeCanvas = ({ agents: socketAgents = [], logs = [], thirdWallAgent = n
             <meshStandardMaterial color="#050508" roughness={0.9} metalness={0.1} />
           </mesh>
 
-          {/* 5 Desk Rectangles */}
-          {[
-            { pos: [-8, 0, -4], size: [4, 0.1, 2] },
-            { pos: [-8, 0, 4],  size: [4, 0.1, 2] },
-            { pos: [0, 0, 0],   size: [4, 0.1, 2] },
-            { pos: [8, 0, -4],  size: [4, 0.1, 2] },
-            { pos: [8, 0, 4],   size: [4, 0.1, 2] },
-          ].map((desk, i) => (
-            <mesh key={i} position={[desk.pos[0], 0.2, desk.pos[2]]} castShadow>
-              <boxGeometry args={desk.size} />
-              <meshStandardMaterial color="#0a0a0f" roughness={0.2} metalness={0.8} />
-            </mesh>
-          ))}
+          {/* Office Desks & Narrative Terminal */}
+          <DeskGrid />
 
           {/* Meeting Room (Top Center) */}
           <group position={[0, 1.5, -15]}>

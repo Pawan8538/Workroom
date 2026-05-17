@@ -37,7 +37,7 @@ function App() {
       <OfficeCanvas agents={agents} logs={logs} thirdWallAgent={thirdWallAgent} />
 
       {/* Right sidebar */}
-      <AgentPanel />
+      <AgentPanel agents={agents} logs={logs} />
 
       {/* Goal input bar */}
       <GoalInput />
