@@ -34,7 +34,7 @@ app.use(visitorTracker);
 app.use('/api/goal', goalRoutes);
 app.use('/api/agents', agentRoutes);
 app.use('/api/chapter2', chapterRoutes);
-app.use('/api/doorkeeper', doorkeeperRoutes);
+app.use('/', doorkeeperRoutes);
 
 // Socket.io
 setupSocket(io);

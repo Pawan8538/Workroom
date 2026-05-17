@@ -43,6 +43,9 @@ const FourthWall = () => {
   const timersRef = useRef([]);
 
   useEffect(() => {
+    // Log reaching fourth wall to Doorkeeper
+    window.__doorkeeper?.logFourthWall();
+
     // ── Fade in the overlay ──
     // Slight delay before darkness descends — feels organic
     const fadeTimer = setTimeout(() => setOverlayOpacity(1), 100);

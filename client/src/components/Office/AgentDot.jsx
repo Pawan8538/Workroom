@@ -96,7 +96,7 @@ const AgentDot = ({ name, role, color, symbol, x, y, status, task, isSelected, o
   const emissiveColor = isHidden ? '#000000' : color;
 
   return (
-    <group onClick={(e) => { e.stopPropagation(); onClick?.(); }}>
+    <group onClick={(e) => { e.stopPropagation(); window.__doorkeeper?.logAgentClick(name); onClick?.(); }}>
       {/* Main Agent Sphere */}
       <mesh ref={meshRef} castShadow>
         <sphereGeometry args={[0.22, 32, 32]} />
