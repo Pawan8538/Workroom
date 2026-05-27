@@ -5,9 +5,10 @@
 //
 // THE INTERN
 // ──────────
-// When a meeting is in progress, a faint figure appears at the
-// far edge of the meeting room — standing just behind where the
-// agents sit. Not quite in the room. Not quite outside it.
+// When a meeting is in progress (Socket.io meeting event), a faint
+// figure appears at the far edge of the meeting room — standing
+// just behind where the agents sit. Not quite in the room. Not
+// quite outside it.
 //
 // It is translucent. It does not move. It does not pulse.
 // It simply stands there, as if it has always been standing there
@@ -15,7 +16,8 @@
 //
 // If the user clicks it:
 //   - It vanishes instantly. No animation. No fade. Gone.
-//   - A single log entry appears: "This agent is not part of the simulation."
+//   - A single ALERT log entry fires in RED:
+//     "[ALERT] THIS AGENT IS NOT PART OF THE SIMULATION."
 //   - The figure never returns for the rest of the session.
 //   - Clicking the same spot again does nothing. Empty space.
 //
@@ -29,25 +31,35 @@
 //
 // ─────────────────────────────────────────────────────────────
 
-import React, { useState, useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 
 const TheIntern = ({ isMeetingActive, onDismiss }) => {
   // ── Once dismissed, gone forever (this session) ──
-  const [dismissed, setDismissed] = useState(false);
+  // Using useRef instead of useState — survives re-renders without
+  // causing unnecessary re-render on change. Permanent flag.
+  const dismissedRef = useRef(false);
+
+  // ── Force re-render after dismiss by using a state trigger ──
+  const [_, setForceRender] = React.useState(0);
 
   // ── Ref for opacity animation ──
   const materialRef = useRef();
 
+  // Console log on mount to confirm rendering
+  useEffect(() => {
+    console.log('[TheIntern] Mounted. isMeetingActive:', isMeetingActive);
+  }, [isMeetingActive]);
+
   // ── Target opacity based on meeting state ──
   // 0.06 when visible — barely perceptible. A suggestion of form.
   // 0.0 when no meeting or dismissed.
-  const targetOpacity = (!dismissed && isMeetingActive) ? 0.06 : 0.0;
+  const targetOpacity = (!dismissedRef.current && isMeetingActive) ? 0.06 : 0.0;
 
   useFrame(() => {
     if (materialRef.current) {
       // Slow fade in, instant snap on dismiss
-      if (dismissed) {
+      if (dismissedRef.current) {
         materialRef.current.opacity = 0;
       } else {
         // Gradual approach — takes ~2 seconds to fully materialize
@@ -60,26 +72,30 @@ const TheIntern = ({ isMeetingActive, onDismiss }) => {
   // ── If dismissed, render nothing ──
   // Not even an invisible mesh. It is gone from the scene graph.
   // Clicking the empty space produces no event. No handler. Nothing.
-  if (dismissed) return null;
+  if (dismissedRef.current) return null;
 
-  // ── If no meeting and opacity is essentially zero, skip rendering ──
-  // (But keep the component mounted so it can reappear next meeting)
+  // ── Only visible during meeting events from Socket.io ──
+  // If no meeting is active, silhouette is completely invisible
 
   const handleClick = (e) => {
     e.stopPropagation();
 
-    // Only respond if currently visible
+    // Only respond if currently visible (meeting active)
     if (!isMeetingActive) return;
 
-    // Permanent removal
-    setDismissed(true);
+    console.log('[TheIntern] Clicked! Permanently dismissing figure.');
 
-    // Push the unsettling log entry
+    // Permanent removal via ref — never comes back this session
+    dismissedRef.current = true;
+    setForceRender(prev => prev + 1); // Trigger re-render to unmount
+
+    // Push the unsettling ALERT log entry in RED
     if (onDismiss) {
       onDismiss({
         agentId: '???',
-        message: 'This agent is not part of the simulation.',
+        message: '[ALERT] THIS AGENT IS NOT PART OF THE SIMULATION.',
         type: 'shadow',
+        color: '#ff0044', // Red alert color
         timestamp: new Date().toISOString(),
       });
     }
@@ -111,7 +127,7 @@ const TheIntern = ({ isMeetingActive, onDismiss }) => {
       {/* a fraction of a second after the figure vanishes,  */}
       {/* because the material ref is separate. This creates */}
       {/* a "was something standing here?" moment.           */}
-      {!dismissed && (
+      {!dismissedRef.current && (
         <mesh
           position={[5.5, 0.01, -2.8]}
           rotation={[-Math.PI / 2, 0, 0]}

@@ -1,39 +1,111 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+
+// ── Sector calculation based on 3D coordinates (x, z) ──
+// In Three.js, x is horizontal and z is depth (y is vertical height).
+const getSector = (x, z) => {
+  if (x == null || z == null) return 'UNKNOWN';
+  
+  // Divide floor into 3 columns (X-axis) and 2 rows (Z-axis)
+  const col = x < -5 ? 1 : (x > 5 ? 3 : 2);
+  const row = z < 0 ? 0 : 1;
+  
+  const sectorNum = row * 3 + col; // 1 to 6
+  return `SECTOR_${sectorNum}`;
+};
 
 const AgentList = ({ agents = [] }) => {
-  // If socket agents is empty, provide a stylish fallback or render the live list
+  // Debug log to console to inspect exact incoming socket coordinates
+  useEffect(() => {
+    if (agents.length > 0) {
+      console.log('[AgentList] Live Agent Coordinates from Socket:', agents.map(a => ({
+        id: a.id,
+        x: a.x,
+        y: a.y,
+        z: a.z,
+        position: a.position
+      })));
+    }
+  }, [agents]);
+
   const displayAgents = agents.length > 0 ? agents : [
-    { id: 'aria', name: 'ARIA', role: 'Product Manager', status: 'idle', color: '#00f5ff', symbol: 'Ω' },
-    { id: 'kael', name: 'KAEL', role: 'Backend Developer', status: 'idle', color: '#ff8a00', symbol: 'λ' },
-    { id: 'zeno', name: 'ZENO', role: 'QA Engineer', status: 'idle', color: '#a855f7', symbol: 'Δ' },
+    { id: 'aria', name: 'ARIA', color: '#00f5ff', status: 'idle', x: -8, y: 0, z: -4 },
+    { id: 'kael', name: 'KAEL', color: '#ff8a00', status: 'idle', x: 0, y: 0, z: 0 },
+    { id: 'zeno', name: 'ZENO', color: '#a855f7', status: 'idle', x: 8, y: 0, z: 4 },
   ];
 
   return (
-    <div className="agent-list" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-      {displayAgents.map(agent => (
-        <div key={agent.id} style={{
-          padding: '12px 15px',
-          background: 'rgba(255, 255, 255, 0.03)',
-          border: '1px solid rgba(255, 255, 255, 0.08)',
-          borderRadius: '6px',
-          backdropFilter: 'blur(5px)',
-          transition: 'all 0.3s ease'
-        }}>
-          <div style={{ fontWeight: '600', color: agent.color || '#00f5ff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span>{agent.name}</span>
-            <span style={{ fontSize: '0.75rem', fontFamily: 'monospace', color: '#888' }}>{agent.symbol || ''}</span>
-          </div>
-          <div style={{ fontSize: '0.8rem', color: '#aaa', marginTop: '6px', display: 'flex', justifyContent: 'space-between' }}>
-            <span>{agent.role}</span>
-            <span style={{ color: agent.status === 'working' ? '#00ff88' : (agent.status === 'thinking' ? '#00f5ff' : '#ffaa00'), fontFamily: 'monospace', textTransform: 'uppercase', fontSize: '0.75rem' }}>{agent.status || 'idle'}</span>
-          </div>
-          {agent.task && (
-            <div style={{ fontSize: '0.75rem', color: '#888', marginTop: '8px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '6px', fontFamily: 'monospace', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              Task: <span style={{ color: '#fff' }}>{agent.task.title}</span>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      {displayAgents.map(agent => {
+        // Extract correct X and Z coordinates whether top-level or inside position object
+        const posX = agent.position?.x ?? agent.x;
+        const posZ = agent.position?.z ?? agent.position?.y ?? agent.z ?? agent.y;
+
+        return (
+          <div key={agent.id} style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: 'transparent' }}>
+            {/* Header: Dot + Name */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ 
+                width: '12px', 
+                height: '12px', 
+                borderRadius: '50%', 
+                backgroundColor: agent.color || '#00f5ff',
+                boxShadow: `0 0 10px ${agent.color || '#00f5ff'}`
+              }} />
+              <div style={{ 
+                color: agent.color || '#00f5ff', 
+                fontSize: '1.1rem', 
+                letterSpacing: '2px',
+                textShadow: `0 0 5px ${agent.color || '#00f5ff'}88`
+              }}>
+                {agent.name}
+              </div>
             </div>
-          )}
-        </div>
-      ))}
+            
+            {/* Stats Block */}
+            <div style={{ 
+              color: '#666', 
+              fontSize: '0.75rem', 
+              paddingLeft: '22px', // Align with text
+              display: 'flex', 
+              flexDirection: 'column', 
+              gap: '4px' 
+            }}>
+              <div style={{ display: 'flex' }}>
+                <span style={{ width: '80px' }}>STATUS</span>
+                <span>: </span>
+                <span style={{ 
+                  color: agent.status === 'working' ? '#00f5ff' : '#888',
+                  textTransform: 'uppercase'
+                }}>
+                  {agent.status || 'IDLE'}
+                </span>
+              </div>
+              <div style={{ display: 'flex' }}>
+                <span style={{ width: '80px' }}>LOCATION</span>
+                <span>: </span>
+                <span style={{ color: '#888' }}>
+                  {getSector(posX, posZ)}
+                </span>
+              </div>
+              <div style={{ display: 'flex' }}>
+                <span style={{ width: '80px' }}>AUTH</span>
+                <span>: </span>
+                <span style={{ color: '#00aa00' }}>OK</span>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+      
+      <div style={{ 
+        color: '#222', 
+        fontSize: '0.7rem', 
+        textAlign: 'center', 
+        marginTop: '10px',
+        letterSpacing: '2px'
+      }}>
+        END_OF_LIST
+      </div>
     </div>
   );
 };

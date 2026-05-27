@@ -1,34 +1,64 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
-const Header = () => {
+const Header = ({ isConnected, cycle }) => {
+  const [time, setTime] = useState(new Date().toLocaleTimeString());
+  const [showObserver, setShowObserver] = useState(false);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTime(new Date().toLocaleTimeString());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    // Show observer text after 30 seconds
+    const timeout = setTimeout(() => {
+      setShowObserver(true);
+    }, 30000);
+    return () => clearTimeout(timeout);
+  }, []);
+
   return (
-    <header style={{
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      width: '100%',
-      padding: '20px 40px',
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      zIndex: 20,
+    <div style={{
+      position: 'fixed',
+      top: '20px',
+      left: '20px',
+      zIndex: 1000,
+      fontFamily: 'monospace',
+      color: '#00f5ff',
+      fontSize: '0.8rem',
+      letterSpacing: '1px',
       pointerEvents: 'none'
     }}>
-      <div style={{ pointerEvents: 'auto' }}>
-        <h1 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 'bold', letterSpacing: '2px' }}>WORKROOM</h1>
+      <div style={{ opacity: 0.6 }}>SYS_VER  : 1.7.03</div>
+      <div style={{ opacity: 0.6 }}>GRID     : WRK_0x43</div>
+      <div style={{ opacity: 0.6 }}>MODE     : OBSERVE</div>
+      <div style={{ opacity: 0.6 }}>TIME     : {time}</div>
+      <div style={{ opacity: 0.6 }}>CAMERA   : OVERWATCH_3A</div>
+      <div style={{ opacity: 0.6, color: isConnected ? '#00f5ff' : '#ffaa00' }}>
+        STATUS   : {isConnected ? 'ONLINE' : 'OFFLINE'}
       </div>
-      
-      <div style={{
-        background: 'rgba(255, 255, 255, 0.05)',
-        padding: '5px 15px',
-        borderRadius: '4px',
-        border: '1px solid rgba(255, 255, 255, 0.1)',
-        pointerEvents: 'auto'
-      }}>
-        <span style={{ color: '#888', fontSize: '0.8rem', marginRight: '10px' }}>CYCLE</span>
-        <span style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>00042</span>
-      </div>
-    </header>
+
+      {showObserver && (
+        <div style={{
+          marginTop: '20px',
+          color: '#ff0044',
+          fontWeight: 'bold',
+          opacity: 0,
+          animation: 'fadeIn 2s ease-in forwards'
+        }}>
+          OBSERVER : DETECTED
+        </div>
+      )}
+
+      <style>{`
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+      `}</style>
+    </div>
   );
 };
 

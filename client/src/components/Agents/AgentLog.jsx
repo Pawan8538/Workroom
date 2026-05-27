@@ -1,39 +1,73 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
 const AgentLog = ({ logs = [] }) => {
-  const displayLogs = logs.length > 0 ? logs : [
-    { _id: 1, timestamp: new Date().toISOString(), agentId: 'SYSTEM', message: 'System initialized. Workroom online.', type: 'system' }
+  const [injectedTraces, setInjectedTraces] = useState([]);
+
+  // Inject observer trace every 45 seconds
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setInjectedTraces(prev => [
+        ...prev,
+        {
+          _id: `trace_${Date.now()}`,
+          timestamp: new Date().toISOString(),
+          agentId: 'OBSERVER',
+          message: 'signal trace: active',
+          type: 'trace'
+        }
+      ]);
+    }, 45000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Merge actual logs and injected traces, then sort by time
+  const allLogs = [...logs, ...injectedTraces].sort((a, b) => {
+    return new Date(a.timestamp) - new Date(b.timestamp);
+  });
+
+  const displayLogs = allLogs.length > 0 ? allLogs : [
+    { _id: 1, timestamp: new Date().toISOString(), agentId: 'SYSTEM', message: 'FEED SYNCED', type: 'system' }
   ];
 
   return (
-    <div className="agent-log" style={{
-      fontSize: '0.75rem',
-      fontFamily: 'monospace',
-      color: '#ccc',
-      maxHeight: '280px',
+    <div style={{
+      fontSize: '0.7rem',
+      color: '#666',
+      maxHeight: '400px',
       overflowY: 'auto',
       display: 'flex',
       flexDirection: 'column',
-      gap: '8px',
+      gap: '4px',
       paddingRight: '5px'
     }}>
       {displayLogs.map(log => {
-        const timeStr = log.timestamp ? new Date(log.timestamp).toLocaleTimeString() : '';
-        let color = '#ccc';
-        if (log.type === 'system') color = '#00f5ff';
-        if (log.type === 'warning') color = '#ffaa00';
-        if (log.type === 'task') color = '#00ff88';
-        if (log.type === 'shadow') color = '#ff3333';
+        const timeStr = log.timestamp ? new Date(log.timestamp).toLocaleTimeString('en-US', { hour12: false }) : '';
+        let color = '#00f5ff'; // cyan normal
+        let msgColor = '#555';
+        let prefix = `[${log.agentId}]`;
+
+        if (log.type === 'system') {
+          color = '#555';
+          prefix = '[SYSTEM]';
+        } else if (log.type === 'warning') {
+          color = '#ffaa00'; // orange warning
+        } else if (log.type === 'alert') {
+          color = '#ff0044'; // red alert
+          prefix = '[ALERT]';
+        } else if (log.type === 'shadow') {
+          color = '#880000'; // dark red
+          prefix = '[ALERT]';
+          msgColor = '#880000';
+        } else if (log.type === 'trace') {
+          color = '#222'; // extremely faint
+          msgColor = '#222';
+        }
 
         return (
-          <div key={log._id || Math.random()} style={{ lineHeight: '1.4', background: 'rgba(0,0,0,0.2)', padding: '6px 8px', borderRadius: '4px', borderLeft: `2px solid ${color}` }}>
-            <div style={{ color: '#666', fontSize: '0.65rem', marginBottom: '2px', display: 'flex', justifyContent: 'space-between' }}>
-              <span>[{timeStr}]</span>
-              <span style={{ color, fontWeight: 'bold' }}>{log.agentId}</span>
-            </div>
-            <div style={{ color: log.type === 'shadow' ? '#ff3333' : '#eee', textShadow: log.type === 'shadow' ? '0 0 5px rgba(255,51,51,0.5)' : 'none' }}>
-              {log.message}
-            </div>
+          <div key={log._id || Math.random()} style={{ display: 'flex', gap: '8px', lineHeight: '1.2', background: 'transparent' }}>
+            <span style={{ color: '#444', minWidth: '60px' }}>{timeStr}</span>
+            <span style={{ color }}>{prefix}</span>
+            <span style={{ color: msgColor, textTransform: 'uppercase' }}>{log.message}</span>
           </div>
         );
       })}

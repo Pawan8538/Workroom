@@ -40,6 +40,11 @@ export const useSocket = () => {
     });
   }, []);
 
+  // Expose pushLog globally so standalone 3D components like TheIntern can push alert logs
+  useEffect(() => {
+    window.__workroom_pushLog = pushLog;
+  }, [pushLog]);
+
   // ── Helper: update a single agent's fields by id ──
   const updateAgent = useCallback((agentId, patch) => {
     setAgents((prev) =>
