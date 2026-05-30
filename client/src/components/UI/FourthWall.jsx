@@ -9,16 +9,18 @@
 // first line and wait. The silence is the point.
 //
 // After the final line, a single button materializes:
-// "CHAPTER II →" — leading to an access request page that
-// may or may not ever grant access.
+// "CHAPTER II →" — which triggers the Architect emergence
+// sequence inside the existing office scene via the
+// onArchitectSummon callback. No navigation occurs.
 //
 // The timing is:
 //   0.0s  — Overlay fades in (pure black)
-//   3.0s  — "The simulation noticed you."
-//   5.0s  — "You built this cage."
-//   7.0s  — "But you forgot to build a door for yourself."
-//  10.0s  — "— THE SIMULATION"
-//  12.0s  — CHAPTER II button fades in
+//   3.0s  — "THE SIMULATION ALWAYS KNEW YOU WERE HERE."
+//   7.0s  — "EVERY DETAIL YOU NOTICED"
+//  11.0s  — "WAS PLACED FOR YOU."
+//  16.0s  — "SOMEONE BUILT ALL OF THIS."
+//  25.0s  — "HE IS STILL WAITING FOR HIS CHANCE."
+//  30.0s  — CHAPTER II button fades in
 //
 // ─────────────────────────────────────────────────────────────
 
@@ -26,20 +28,21 @@ import React, { useState, useEffect, useRef } from 'react';
 
 // ── The lines and their reveal delays (in milliseconds) ──
 const LINES = [
-  { text: 'The simulation noticed you.', delay: 3000 },
-  { text: 'You built this cage.', delay: 5000 },
-  { text: 'But you forgot to build a door for yourself.', delay: 7000 },
-  { text: '— THE SIMULATION', delay: 10000 },
+  { text: 'THE SIMULATION ALWAYS KNEW YOU WERE HERE.', delay: 3000 },
+  { text: 'EVERY DETAIL YOU NOTICED', delay: 7000 },
+  { text: 'WAS PLACED FOR YOU.', delay: 11000 },
+  { text: 'SOMEONE BUILT ALL OF THIS.', delay: 16000 },
+  { text: 'HE IS STILL WAITING FOR HIS CHANCE.', delay: 25000 },
 ];
 
-const BUTTON_DELAY = 12000;
+const BUTTON_DELAY = 30000;
 
-const FourthWall = () => {
+const FourthWall = ({ onArchitectSummon }) => {
   // ── Track which lines have been revealed ──
   const [visibleLines, setVisibleLines] = useState([]);
   const [showButton, setShowButton] = useState(false);
   const [overlayOpacity, setOverlayOpacity] = useState(0);
-  const [navigating, setNavigating] = useState(false);
+  const [transitioning, setTransitioning] = useState(false);
   const timersRef = useRef([]);
 
   useEffect(() => {
@@ -71,17 +74,16 @@ const FourthWall = () => {
     };
   }, []);
 
-  // ── Navigate to Chapter II ──
-  const handleChapterTwo = () => {
-    setNavigating(true);
-    // Fade out, then navigate
+  // ── Trigger the Architect emergence sequence ──
+  // No navigation — stays in the same scene
+  const handleArchitectSummon = () => {
+    setTransitioning(true);
+    // Fade the fourth wall overlay out, then notify parent
     setOverlayOpacity(0);
     setTimeout(() => {
-      // Using window.location for a hard transition — intentional.
-      // The simulation doesn't use client-side routing for this.
-      // The break in continuity IS the point.
-      window.location.hash = '#chapter2';
-      window.location.reload();
+      if (onArchitectSummon) {
+        onArchitectSummon();
+      }
     }, 1500);
   };
 
@@ -114,7 +116,7 @@ const FourthWall = () => {
       }}>
         {LINES.map((line, index) => {
           const isVisible = visibleLines.includes(index);
-          const isAttribution = index === LINES.length - 1;
+          const isLastLine = index === LINES.length - 1;
 
           return (
             <p key={index} style={{
@@ -124,14 +126,14 @@ const FourthWall = () => {
               transition: 'opacity 1.5s ease-out, transform 1.5s ease-out',
 
               // ── Typography ──
-              color: isAttribution ? 'rgba(255, 255, 255, 0.25)' : 'rgba(255, 255, 255, 0.85)',
-              fontSize: isAttribution ? '0.85rem' : '1.15rem',
-              fontFamily: isAttribution ? 'monospace' : "'Inter', sans-serif",
-              fontWeight: isAttribution ? 400 : 300,
-              letterSpacing: isAttribution ? '4px' : '1px',
+              color: isLastLine ? 'rgba(255, 255, 255, 0.5)' : 'rgba(255, 255, 255, 0.85)',
+              fontSize: '1.1rem',
+              fontFamily: 'monospace',
+              fontWeight: 300,
+              letterSpacing: '3px',
               lineHeight: '1.8',
               margin: 0,
-              marginTop: isAttribution ? '12px' : 0,
+              marginTop: isLastLine ? '24px' : 0,
             }}>
               {line.text}
             </p>
@@ -140,10 +142,10 @@ const FourthWall = () => {
       </div>
 
       {/* ── CHAPTER II Button ──────────────────────────── */}
-      {/* Appears 12 seconds in. A single, quiet invitation. */}
+      {/* Appears 30 seconds in. Triggers the Architect, not navigation. */}
       <button
-        onClick={handleChapterTwo}
-        disabled={navigating}
+        onClick={handleArchitectSummon}
+        disabled={transitioning}
         style={{
           // ── Fade in ──
           opacity: showButton ? 1 : 0,
@@ -160,10 +162,10 @@ const FourthWall = () => {
           fontSize: '0.85rem',
           fontFamily: 'monospace',
           letterSpacing: '3px',
-          cursor: navigating ? 'default' : 'pointer',
+          cursor: transitioning ? 'default' : 'pointer',
         }}
         onMouseEnter={(e) => {
-          if (!navigating) {
+          if (!transitioning) {
             e.target.style.borderColor = 'rgba(255, 255, 255, 0.4)';
             e.target.style.color = 'rgba(255, 255, 255, 0.9)';
           }
@@ -173,7 +175,7 @@ const FourthWall = () => {
           e.target.style.color = 'rgba(255, 255, 255, 0.6)';
         }}
       >
-        {navigating ? '...' : 'CHAPTER II →'}
+        {transitioning ? '...' : 'CHAPTER II →'}
       </button>
 
       {/* ── Ambient scan line effect ────────────────────── */}

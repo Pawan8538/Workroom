@@ -3,13 +3,22 @@ import React, { useState } from 'react';
 const GoalInput = () => {
   const [goal, setGoal] = useState('');
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!goal.trim()) return;
-    
-    // In a real implementation this would emit via socket to start an agent task
-    console.log('[System] Goal deployed:', goal);
+    const currentGoal = goal;
     setGoal('');
+    try {
+      const response = await fetch('http://localhost:5000/api/goal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ goal: currentGoal })
+      });
+      const data = await response.json();
+      console.log('[GoalInput] Response:', data);
+    } catch (err) {
+      console.error('[GoalInput] Failed:', err);
+    }
   };
 
   return (
@@ -29,15 +38,15 @@ const GoalInput = () => {
         zIndex: 100,
         fontFamily: 'monospace'
       }}>
-        <div style={{ 
-          color: '#00f5ff', 
-          fontSize: '0.9rem', 
-          letterSpacing: '2px', 
-          marginRight: '20px' 
+        <div style={{
+          color: '#00f5ff',
+          fontSize: '0.9rem',
+          letterSpacing: '2px',
+          marginRight: '20px'
         }}>
           GOAL
         </div>
-        
+
         <form onSubmit={handleSubmit} style={{ flex: 1, display: 'flex' }}>
           <input
             type="text"
@@ -56,7 +65,7 @@ const GoalInput = () => {
               outline: 'none'
             }}
           />
-          <button 
+          <button
             type="submit"
             style={{
               background: 'transparent',

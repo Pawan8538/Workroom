@@ -100,6 +100,7 @@ const GateScene = ({ onComplete }) => {
 
           {/* ── Metal Handle Wrapper to prevent hover flickering during door rotation ── */}
           <div
+            onClick={handleOpen}
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
             style={{
@@ -114,7 +115,6 @@ const GateScene = ({ onComplete }) => {
           >
             {/* The physical metal handle */}
             <div 
-              onClick={handleOpen}
               style={{
                 width: '15px',
                 height: '40px',

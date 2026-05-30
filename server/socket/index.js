@@ -9,7 +9,7 @@
 //  4. Tracks active connections for cleanup
 // ─────────────────────────────────────────────────────────────
 
-import { handleAgentEvents } from './agentEvents.js';
+import { handleAgentEvents, startSpontaneousMeeting } from './agentEvents.js';
 
 // ── The 3 eerie shadow messages that rotate per session ──
 const SHADOW_MESSAGES = [
@@ -45,7 +45,7 @@ export const setupSocket = (io) => {
     const shadowTimer = setTimeout(() => {
       // Pick a message based on a rotating index
       const msgIndex = Math.floor(Math.random() * SHADOW_MESSAGES.length);
-      
+
       // Emit only to THIS client's session — the shadow is personal
       socket.emit('agent:shadowLog', {
         agent: '???',
@@ -80,6 +80,7 @@ export const setupSocket = (io) => {
     const triggerCycle = 8 + Math.floor(Math.random() * 8);
     let currentCycle = 0;
     let thirdWallFired = false;
+    let spontaneousMeetingFired = false; // Ensure the meeting only fires once per session
 
     const cycleTimer = setInterval(() => {
       currentCycle++;
@@ -119,6 +120,24 @@ export const setupSocket = (io) => {
           });
         }, 4000);
       }
+
+      // ── Check if it’s time for the Spontaneous Meeting (cycle 5) ──
+      // All three agents walk to the meeting room, muffled audio plays,
+      // Archivist flickers rapidly. After 45s agents return.
+      if (currentCycle === 5 && !spontaneousMeetingFired) {
+        spontaneousMeetingFired = true;
+
+        console.log(`[Socket] ◈ SPONTANEOUS MEETING triggered at cycle ${currentCycle} for ${socket.id}`);
+
+        // startSpontaneousMeeting returns a timer handle for the 45s end event
+        const meetingEndTimer = startSpontaneousMeeting(io, socket);
+
+        // Store the meeting timer for cleanup on disconnect
+        const t = sessionTimers.get(socket.id);
+        if (t) {
+          t.meeting = meetingEndTimer;
+        }
+      }
     }, 6000); // Every 6 seconds = 1 simulation cycle
 
     // Store timers for cleanup
@@ -130,12 +149,13 @@ export const setupSocket = (io) => {
     // ── Cleanup on disconnect ──
     socket.on('disconnect', (reason) => {
       console.log(`[Socket] ✧ Client disconnected: ${socket.id} (${reason})`);
-      
+
       // Clear all session timers
       const allTimers = sessionTimers.get(socket.id);
       if (allTimers) {
         if (allTimers.shadow) clearTimeout(allTimers.shadow);
         if (allTimers.cycle) clearInterval(allTimers.cycle);
+        if (allTimers.meeting) clearTimeout(allTimers.meeting); // Clean up spontaneous meeting timer
         sessionTimers.delete(socket.id);
       }
     });

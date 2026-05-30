@@ -6,6 +6,7 @@
 //   agents               — live array of agent objects
 //   logs                 — live array of log entries (including shadow logs)
 //   isFourthWallTriggered — boolean, true when the dark overlay fires
+//   isMeetingActive       — boolean, true during spontaneous meeting (cycle 5)
 //   socket               — raw socket instance (for emitting from components)
 //   isConnected           — connection health indicator
 // ─────────────────────────────────────────────────────────────
@@ -24,9 +25,14 @@ export const useSocket = () => {
   const [agents, setAgents] = useState([]);
   const [logs, setLogs] = useState([]);
   const [isFourthWallTriggered, setIsFourthWallTriggered] = useState(false);
+  const [isMeetingActive, setIsMeetingActive] = useState(null); // true during spontaneous meeting
   const [isConnected, setIsConnected] = useState(false);
   const [thirdWallAgent, setThirdWallAgent] = useState(null);  // agentId currently frozen
   const [cycle, setCycle] = useState(0);
+  // ── Event signal timestamps (bump to Date.now() to fire a one-shot reaction) ──
+  const [meetingStartedAt, setMeetingStartedAt] = useState(null);
+  const [ariaTaskAssignedAt, setAriaTaskAssignedAt] = useState(null);
+  const [fourthWallAt, setFourthWallAt] = useState(null);
 
   // ── Ref to persist the socket across re-renders ──
   const socketRef = useRef(null);
@@ -115,6 +121,11 @@ export const useSocket = () => {
       // Update the agent's task and set them to "working"
       updateAgent(agentId, { task, status: 'working' });
 
+      // Signal ARIA task bubble
+      if (agentId === 'aria') {
+        setAriaTaskAssignedAt(Date.now());
+      }
+
       pushLog({
         agentId,
         message: `Assigned: ${task.title}`,
@@ -130,6 +141,7 @@ export const useSocket = () => {
     socket.on('agent:stateChanged', (data) => {
       const { agentId, state, detail, timestamp } = data;
 
+      console.log('[Socket] Agent state changed:', agentId, state);
       updateAgent(agentId, { status: state });
 
       pushLog({
@@ -193,13 +205,51 @@ export const useSocket = () => {
     });
 
     // ─────────────────────────────────────────────────────
+    // EVENT: simulation:meetingStarted
+    // The spontaneous meeting — all three agents walk to the
+    // meeting room at cycle 5. Muffled audio plays. Archivist
+    // flickers rapidly. Observer is alone for 45 seconds.
+    // ─────────────────────────────────────────────────────
+    socket.on('simulation:meetingStarted', (data) => {
+      console.log('[Socket] ◈ SPONTANEOUS MEETING STARTED', data.agents);
+      setIsMeetingActive(true);
+      setMeetingStartedAt(Date.now());
+
+      pushLog({
+        agentId: 'SYSTEM',
+        message: 'All agents have entered the meeting room.',
+        type: 'info',
+        timestamp: data.timestamp,
+      });
+    });
+
+    // ─────────────────────────────────────────────────────
+    // EVENT: simulation:meetingEnded
+    // Agents return to their desks. Muffled audio stops.
+    // Archivist intensity returns to normal.
+    // ─────────────────────────────────────────────────────
+    socket.on('simulation:meetingEnded', (data) => {
+      console.log('[Socket] ◈ SPONTANEOUS MEETING ENDED');
+      setIsMeetingActive(false);
+
+      pushLog({
+        agentId: 'SYSTEM',
+        message: 'Meeting concluded. Agents returning to positions.',
+        type: 'info',
+        timestamp: data.timestamp,
+      });
+    });
+
+    // ─────────────────────────────────────────────────────
     // EVENT: simulation:fourthWallTrigger
     // All tasks done. The simulation becomes aware.
     // Triggers the dark cinematic overlay.
     // ─────────────────────────────────────────────────────
     socket.on('simulation:fourthWallTrigger', (data) => {
       console.log('[Socket] ◈◈◈ FOURTH WALL BREAK ◈◈◈');
+      console.log('[CLIENT] Fourth wall received');
       setIsFourthWallTriggered(true);
+      setFourthWallAt(Date.now());
 
       pushLog({
         agentId: 'SYSTEM',
@@ -265,9 +315,13 @@ export const useSocket = () => {
     agents,
     logs,
     isFourthWallTriggered,
+    isMeetingActive,      // true during the spontaneous meeting (cycle 5)
     isConnected,
     thirdWallAgent,
     cycle,
+    meetingStartedAt,
+    ariaTaskAssignedAt,
+    fourthWallAt,
     socket: socketRef.current,
   };
 };

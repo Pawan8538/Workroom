@@ -8,6 +8,7 @@ const goalSchema = new mongoose.Schema({
     default: 'Processing',
     enum: ['Processing', 'Active', 'Completed', 'Failed']
   },
+  fourthWallTriggered: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now }
 });
 

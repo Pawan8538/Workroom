@@ -1,5 +1,6 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
+import { Html } from '@react-three/drei';
 import { AGENT_TERRITORIES } from '../../constants/OFFICE_LAYOUT';
 import * as THREE from 'three';
 
@@ -171,8 +172,88 @@ const MeetingRoom = () => {
   );
 };
 
+// ── CODES & TESTS POOLS FOR AGENT TERMINALS ──
+const KAEL_CODE_POOL = [
+  "const express = require('express');",
+  "const router = express.Router();",
+  "const Goal = require('../models/Goal');",
+  "const { io } = require('../socket');",
+  "router.post('/goal', async (req, res) => {",
+  "  try {",
+  "    const { goal } = req.body;",
+  "    console.log('[API] New goal:', goal);",
+  "    const newGoal = new Goal({ content: goal });",
+  "    await newGoal.save();",
+  "    io.emit('goal:deployed', { id: newGoal._id });",
+  "    res.status(201).json({ success: true });",
+  "  } catch (err) {",
+  "    res.status(500).json({ error: err.message });",
+  "  }",
+  "});",
+  "// Initializing task queues...",
+  "// Connection to database established.",
+  "// Socket.io listening on port 5000",
+  "// Running optimization pass...",
+  "// Memory utilization: 34MB",
+  "// CPU load: 1.2%",
+  "// Cache hit rate: 98.4%",
+  "// Web Audio API context initialized"
+];
+
+const ZENO_TEST_POOL = [
+  "✓ GET /api/health - 200 OK (12ms)",
+  "✓ POST /api/goal - 201 Created (145ms)",
+  "✓ Socket connection established (5ms)",
+  "✓ MERN agent controller online (4ms)",
+  "✓ Archivist light controller test passed",
+  "✓ Audio oscillator feedback test passed",
+  "✓ Zeno Desk component test passed",
+  "✓ Kael Desk component test passed",
+  "✓ Aria Cabin lighting test passed",
+  "✓ Meeting positions override verification success",
+  "✓ Database connection handshake - OK",
+  "✓ Redundant process clean exit - code 0",
+  "✓ Memory leak detector - No issues",
+  "✓ Task completion latency simulation test passed"
+];
+
 // ── 3. KAEL DESK ──
-const KaelDesk = ({ onTerminalClick }) => {
+const KaelDesk = ({ onTerminalClick, agentTerminalContent }) => {
+  const [scrollLines, setScrollLines] = useState([
+    'KAEL-DESK-TERM v0.42',
+    '> SYSTEM: IDLE',
+    '> AWAITING TASK ASSIGNMENT...'
+  ]);
+  const lineIndexRef = useRef(0);
+
+  useEffect(() => {
+    if (agentTerminalContent === 'active') {
+      setScrollLines([
+        '> GOAL RECEIVED',
+        '> COMPILING AGENT INSTRUCTIONS...',
+        '> STARTING BACKEND TASK RUNNER...'
+      ]);
+      lineIndexRef.current = 0;
+
+      const interval = setInterval(() => {
+        setScrollLines(prev => {
+          const nextLine = KAEL_CODE_POOL[lineIndexRef.current % KAEL_CODE_POOL.length];
+          lineIndexRef.current += 1;
+          const newLines = [...prev, `> ${nextLine}`];
+          return newLines.slice(-14);
+        });
+      }, 400);
+
+      return () => clearInterval(interval);
+    } else {
+      setScrollLines([
+        'KAEL-DESK-TERM v0.42',
+        '> SYSTEM: IDLE',
+        '> AWAITING TASK ASSIGNMENT...'
+      ]);
+    }
+  }, [agentTerminalContent]);
+
   return (
     <group position={[AGENT_TERRITORIES.KAEL.home.x, 0, AGENT_TERRITORIES.KAEL.home.z]}>
       {/* Desk Surface */}
@@ -205,12 +286,93 @@ const KaelDesk = ({ onTerminalClick }) => {
         <boxGeometry args={[0.8, 0.02, 0.3]} />
         <meshStandardMaterial color="#111" roughness={0.8} />
       </mesh>
+
+      {/* Small always-on terminal screen */}
+      <group position={[0.2, 0.8, 0.2]} rotation={[-0.2, Math.PI / 4, 0]}>
+        <mesh castShadow>
+          <planeGeometry args={[1.5, 1.0]} />
+          <meshStandardMaterial color="#111111" emissive="#000000" emissiveIntensity={0} toneMapped={false} />
+        </mesh>
+        <Html
+          transform
+          occlude
+          distanceFactor={8}
+          position={[0, 0, 0.01]}
+          pointerEvents="none"
+          renderOrder={2}
+        >
+          <div style={{
+            width: '110px',
+            background: '#000000',
+            color: '#ffffff',
+            fontFamily: 'monospace',
+            fontSize: '7px',
+            padding: '3px',
+            border: 'none',
+            lineHeight: '1.4',
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'flex-start',
+            alignItems: 'flex-start',
+            whiteSpace: 'nowrap',
+            textShadow: '0 0 3px rgba(0, 255, 0, 0.8)',
+            opacity: 0.9,
+            pointerEvents: 'none',
+          }}>
+            {scrollLines.map((line, idx) => (
+              <div key={idx} style={{
+                width: '100%',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                textAlign: 'left',
+              }}>
+                {line}
+              </div>
+            ))}
+          </div>
+        </Html>
+      </group>
     </group>
   );
 };
 
 // ── 4. ZENO DESK ──
-const ZenoDesk = () => {
+const ZenoDesk = ({ agentTerminalContent }) => {
+  const [scrollLines, setScrollLines] = useState([
+    'ZENO-TEST-RUNNER v1.0.8',
+    '> STATUS: READY',
+    '> NO ACTIVE TEST RUNS'
+  ]);
+  const lineIndexRef = useRef(0);
+
+  useEffect(() => {
+    if (agentTerminalContent === 'active') {
+      setScrollLines([
+        '> INITIALIZING TEST ENVIRONMENT...',
+        '> RUNNING UNIT TESTS...'
+      ]);
+      lineIndexRef.current = 0;
+
+      const interval = setInterval(() => {
+        setScrollLines(prev => {
+          const nextLine = ZENO_TEST_POOL[lineIndexRef.current % ZENO_TEST_POOL.length];
+          lineIndexRef.current += 1;
+          const newLines = [...prev, nextLine];
+          return newLines.slice(-14);
+        });
+      }, 500);
+
+      return () => clearInterval(interval);
+    } else {
+      setScrollLines([
+        'ZENO-TEST-RUNNER v1.0.8',
+        '> STATUS: READY',
+        '> NO ACTIVE TEST RUNS'
+      ]);
+    }
+  }, [agentTerminalContent]);
+
   return (
     <group position={[6, 0, -4]}>
       {/* Desk Surface */}
@@ -246,6 +408,53 @@ const ZenoDesk = () => {
         <boxGeometry args={[0.8, 0.02, 0.3]} />
         <meshStandardMaterial color="#111" roughness={0.8} />
       </mesh>
+
+      {/* Small always-on terminal screen */}
+      <group position={[-0.4, 0.8, 0.2]} rotation={[-0.2, Math.PI / 4, 0]}>
+        <mesh castShadow>
+          <planeGeometry args={[1.5, 1.0]} />
+          <meshStandardMaterial color="#111111" emissive="#000000" emissiveIntensity={0} toneMapped={false} />
+        </mesh>
+        <Html
+          transform
+          occlude
+          distanceFactor={8}
+          position={[0, 0, 0.01]}
+          pointerEvents="none"
+          renderOrder={2}
+        >
+          <div style={{
+            width: '110px',
+            background: '#000000',
+            color: '#ffffff',
+            fontFamily: 'monospace',
+            fontSize: '7px',
+            padding: '3px',
+            border: 'none',
+            lineHeight: '1.4',
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'flex-start',
+            alignItems: 'flex-start',
+            whiteSpace: 'nowrap',
+            textShadow: '0 0 3px rgba(0, 255, 0, 0.8)',
+            opacity: 0.9,
+            pointerEvents: 'none',
+          }}>
+            {scrollLines.map((line, idx) => (
+              <div key={idx} style={{
+                width: '100%',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                textAlign: 'left',
+              }}>
+                {line}
+              </div>
+            ))}
+          </div>
+        </Html>
+      </group>
     </group>
   );
 };
@@ -369,13 +578,13 @@ const StorageCorner = () => {
   );
 };
 
-const DeskGrid = ({ onTerminalClick }) => {
+const DeskGrid = ({ onTerminalClick, agentTerminalContent }) => {
   return (
     <group>
       <AriaCabin />
       <MeetingRoom />
-      <KaelDesk onTerminalClick={onTerminalClick} />
-      <ZenoDesk />
+      <KaelDesk onTerminalClick={onTerminalClick} agentTerminalContent={agentTerminalContent} />
+      <ZenoDesk agentTerminalContent={agentTerminalContent} />
       <ObserverDesk />
       <WallDecorations />
       

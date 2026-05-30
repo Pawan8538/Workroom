@@ -4,15 +4,22 @@ import AgentPanel from './components/Agents/AgentPanel';
 import Header from './components/UI/Header';
 import GoalInput from './components/UI/GoalInput';
 import FourthWall from './components/UI/FourthWall';
+import ArchitectTerminal from './components/UI/ArchitectTerminal';
 import TheObserver from './components/Hidden/TheObserver';
 import ChapterTwo from './components/Chapters/ChapterTwo';
 import { useSocket } from './hooks/useSocket';
 import GateScene from './components/UI/GateScene';
 
 function App() {
-  const { agents, logs, isFourthWallTriggered, isConnected, thirdWallAgent, cycle } = useSocket();
+  const { agents, logs, isFourthWallTriggered, isMeetingActive, isConnected, thirdWallAgent, cycle, meetingStartedAt, ariaTaskAssignedAt, fourthWallAt } = useSocket();
   const [hash, setHash] = useState(window.location.hash);
   const [gatePassed, setGatePassed] = useState(false);
+  const [showGoalInput, setShowGoalInput] = useState(false);
+  const [showArchitect, setShowArchitect] = useState(false);
+
+  // ── Track the Architect outcome to control office brightness ──
+  // 'none' = default, 'yes' = brightened, 'no' = normal dark
+  const [architectOutcome, setArchitectOutcome] = useState('none');
 
   useEffect(() => {
     const onHashChange = () => setHash(window.location.hash);
@@ -35,6 +42,25 @@ function App() {
       document.title = 'WORKROOM';
     };
   }, []);
+
+  useEffect(() => {
+  if (isMeetingActive === false && isMeetingActive !== null && gatePassed && !showGoalInput) {
+    setTimeout(() => setShowGoalInput(true), 3000);
+  }
+}, [isMeetingActive, gatePassed]);
+
+  // ── Architect summon callback — fired by FourthWall.jsx ──
+  const handleArchitectSummon = () => {
+    console.log('[App] Architect summoned. Transitioning to ArchitectTerminal.');
+    setShowArchitect(true);
+  };
+
+  // ── Architect close callback — fired by ArchitectTerminal.jsx ──
+  const handleArchitectClose = (outcome) => {
+    console.log('[App] Architect sequence complete. Outcome:', outcome);
+    setShowArchitect(false);
+    setArchitectOutcome(outcome || 'no');
+  };
 
   // If visitor navigated to Chapter 2 gate
   if (hash === '#chapter2') {
@@ -59,16 +85,31 @@ function App() {
       <Header isConnected={isConnected} cycle={cycle} />
 
       {/* 3D office — fills the entire viewport */}
-      <OfficeCanvas agents={agents} logs={logs} thirdWallAgent={thirdWallAgent} />
+      <OfficeCanvas
+        agents={agents}
+        logs={logs}
+        thirdWallAgent={thirdWallAgent}
+        isMeetingActive={isMeetingActive}
+        meetingStartedAt={meetingStartedAt}
+        ariaTaskAssignedAt={ariaTaskAssignedAt}
+        fourthWallAt={fourthWallAt}
+      />
 
       {/* Right sidebar */}
       <AgentPanel agents={agents} logs={logs} />
 
       {/* Goal input bar */}
-      <GoalInput />
+      {showGoalInput && <GoalInput />}
 
-      {/* Fourth wall overlay */}
-      {isFourthWallTriggered && <FourthWall />}
+      {/* Fourth wall overlay — passes callback instead of navigating */}
+      {isFourthWallTriggered && !showArchitect && (
+        <FourthWall onArchitectSummon={handleArchitectSummon} />
+      )}
+
+      {/* The Architect — fullscreen terminal overlay */}
+      {showArchitect && (
+        <ArchitectTerminal onClose={handleArchitectClose} />
+      )}
 
       {/* The Observer — renders nothing */}
       <TheObserver />

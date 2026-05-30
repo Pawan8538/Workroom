@@ -10,7 +10,7 @@ import * as THREE from 'three';
 
 import { OFFICE_BOUNDS } from '../../constants/OFFICE_LAYOUT';
 
-const AgentDot = ({ name, role, color, symbol, x, y, status, task, isSelected, onClick, isFrozen }) => {
+const AgentDot = ({ name, role, color, symbol, x, y, status, task, isSelected, onClick, isFrozen, overrideX, overrideZ }) => {
   const meshRef = useRef();
   const ringRef = useRef();
   const glowRef = useRef();
@@ -58,14 +58,16 @@ const AgentDot = ({ name, role, color, symbol, x, y, status, task, isSelected, o
 
   // Target position uses props if in a meeting, otherwise the local territory waypoint
   const targetX = useMemo(() => {
+    if (overrideX !== undefined && overrideX !== null) return overrideX;
     const rawX = status === 'meeting' ? clampedX : currentWaypoint.x;
     return Math.max(OFFICE_BOUNDS.minX, Math.min(OFFICE_BOUNDS.maxX, rawX));
-  }, [status, clampedX, currentWaypoint.x]);
+  }, [status, clampedX, currentWaypoint.x, overrideX]);
 
   const targetZ = useMemo(() => {
+    if (overrideZ !== undefined && overrideZ !== null) return overrideZ;
     const rawZ = status === 'meeting' ? clampedZ : currentWaypoint.z;
     return Math.max(OFFICE_BOUNDS.minZ, Math.min(OFFICE_BOUNDS.maxZ, rawZ));
-  }, [status, clampedZ, currentWaypoint.z]);
+  }, [status, clampedZ, currentWaypoint.z, overrideZ]);
 
   const targetPos = useMemo(() => new THREE.Vector3(targetX, 0.5, targetZ), [targetX, targetZ]);
   const currentPos = useRef(new THREE.Vector3(clampedX, 0.5, clampedZ));

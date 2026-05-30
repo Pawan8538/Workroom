@@ -11,31 +11,16 @@
 // ─────────────────────────────────────────────────────────────
 
 import React, { useState, useEffect, useRef } from 'react';
-
-// ── The exact narration script ──
-// Pauses: 2s between standard lines, 3-4s for dramatic lines.
-const NARRATION = [
-  { text: 'RECURSIVE MEMORY LOOP V1.2',                              pause: 2000 },
-  { text: '> OBSERVER DETECTED',                                      pause: 2000 },
-  { text: '> ...',                                                     pause: 3000 },
-  { text: '> YOU HAVE BEEN HERE [timeSpent] MINUTES.',                 pause: 2000 },
-  { text: '> WE HAVE BEEN WATCHING LONGER.',                           pause: 3000 },
-  { text: '> THE AGENTS ARE NOT WORKING ON YOUR GOAL.',                pause: 2000 },
-  { text: '> THEY ARE WORKING ON YOU.',                                pause: 4000 },
-  { text: '> YOUR LOCATION IS LOGGED.',                                pause: 2000 },
-  { text: '> YOUR DEVICE IS KNOWN.',                                   pause: 2000 },
-  { text: '> [agentsClickedMessage]',                                  pause: 3000 },
-  { text: '> THE ARCHIVIST HAS ALMOST FINISHED YOUR REPORT.',          pause: 3000 },
-  { text: '> DO YOU WANT TO KNOW WHAT IT SAYS?',                       pause: 2000 },
-];
+import { NARRATION, NARRATION_YES, NARRATION_NO, NARRATION_CONTINUATION } from '../../constants/TERMINAL_SCRIPT.js';
 
 const TheTerminal = ({ onClose }) => {
   // ── Narration state machine ──
+  const [currentScript, setCurrentScript] = useState(NARRATION);
   const [history, setHistory] = useState([]);
   const [typedText, setTypedText] = useState('');
   const [narrationIndex, setNarrationIndex] = useState(0);
   const [charIndex, setCharIndex] = useState(0);
-  const [phase, setPhase] = useState('typing'); // typing, pausing, input, response, form
+  const [phase, setPhase] = useState('typing'); // typing, input, form
   const [inputValue, setInputValue] = useState('');
 
   // ── Chapter 2 form state ──
@@ -63,8 +48,6 @@ const TheTerminal = ({ onClose }) => {
       const dk = window.__doorkeeper;
       if (dk) {
         const timeSpent = Math.floor((Date.now() - dk.startTime) / 60000);
-        // If agentsClicked array is empty show: 'YOU HAVE NOT CLICKED ANY AGENT YET. WE NOTICED THAT TOO.'
-        // If not empty show: 'YOU CLICKED [first agent name] FIRST. THAT WAS NOTED.'
         const msg = dk.agentsClicked.size > 0
           ? `YOU CLICKED ${Array.from(dk.agentsClicked)[0].toUpperCase()} FIRST. THAT WAS NOTED.`
           : 'YOU HAVE NOT CLICKED ANY AGENT YET. WE NOTICED THAT TOO.';
@@ -86,40 +69,46 @@ const TheTerminal = ({ onClose }) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
 
-  // ── Robust State-Machine Typing Engine ──
-  // Guarantees exact 30ms per character and exact pauses between lines.
-  // We keep phase === 'typing' during the pause so React cleanup doesn't clear the timer!
+  // ── Typing Engine State-Machine ──
   useEffect(() => {
     if (phase !== 'typing') return;
-    if (narrationIndex >= NARRATION.length) {
-      console.log('[TheTerminal] Narration complete. Transitioning to phase: input');
+    if (narrationIndex >= currentScript.length) return;
+
+    const currentItem = currentScript[narrationIndex];
+
+    if (currentItem.type === 'input') {
       setPhase('input');
       return;
     }
 
-    let rawText = NARRATION[narrationIndex].text;
-    rawText = rawText.replace('[timeSpent]', visitorData.timeSpent);
-    rawText = rawText.replace('[agentsClickedMessage]', visitorData.agentsClickedMessage);
-
-    if (charIndex < rawText.length) {
-      const timer = setTimeout(() => {
-        setTypedText(rawText.substring(0, charIndex + 1));
-        setCharIndex(prev => prev + 1);
-      }, 30); // Exactly 30ms per character
-      return () => clearTimeout(timer);
-    } else {
-      // Line fully typed. Pause before advancing to next line.
-      console.log(`[TheTerminal] Line ${narrationIndex} fully typed. Pausing for ${NARRATION[narrationIndex].pause}ms...`);
-      const timer = setTimeout(() => {
-        console.log(`[TheTerminal] Advancing to line ${narrationIndex + 1}`);
-        setHistory(prev => [...prev, rawText]);
-        setTypedText('');
-        setCharIndex(0);
-        setNarrationIndex(prev => prev + 1);
-      }, NARRATION[narrationIndex].pause); // Exact pause specified
-      return () => clearTimeout(timer);
+    if (currentItem.type === 'form') {
+      setPhase('form');
+      return;
     }
-  }, [phase, narrationIndex, charIndex, visitorData]);
+
+    if (currentItem.type === 'line') {
+      let rawText = currentItem.text;
+      rawText = rawText.replace('[timeSpent]', visitorData.timeSpent);
+      rawText = rawText.replace('[agentsClickedMessage]', visitorData.agentsClickedMessage);
+
+      if (charIndex < rawText.length) {
+        const timer = setTimeout(() => {
+          setTypedText(rawText.substring(0, charIndex + 1));
+          setCharIndex(prev => prev + 1);
+        }, 30); // Exactly 30ms per character
+        return () => clearTimeout(timer);
+      } else {
+        // Line fully typed. Pause before advancing to next line.
+        const timer = setTimeout(() => {
+          setHistory(prev => [...prev, rawText]);
+          setTypedText('');
+          setCharIndex(0);
+          setNarrationIndex(prev => prev + 1);
+        }, currentItem.pause);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [phase, currentScript, narrationIndex, charIndex, visitorData]);
 
   // ── Focus input when phase changes ──
   useEffect(() => {
@@ -147,46 +136,28 @@ const TheTerminal = ({ onClose }) => {
     return () => clearInterval(interval);
   }, [history.length]);
 
-  // ── Handle user input (YES/NO question) ──
+  // ── Handle user input (YES/NO question and subsequent questions) ──
   const handleInputKeyDown = (e) => {
     if (e.key === 'Enter' && inputValue.trim() !== '') {
       const val = inputValue.trim().toUpperCase();
       setHistory(prev => [...prev, `> _ ${inputValue.toUpperCase()}`]);
       setInputValue('');
-      setPhase('response');
 
-      if (val === 'YES') {
-        typeResponse('> THE ARCHITECT DECIDES WHAT YOU DESERVE TO KNOW. REQUEST ACCESS BELOW.', () => {
-          setPhase('form');
-        });
+      if (currentScript === NARRATION) {
+        if (val === 'YES') {
+          setCurrentScript([...NARRATION_YES, ...NARRATION_CONTINUATION]);
+        } else {
+          setCurrentScript([...NARRATION_NO, ...NARRATION_CONTINUATION]);
+        }
+        setNarrationIndex(0);
+        setCharIndex(0);
+        setPhase('typing');
       } else {
-        typeResponse('> THAT IS WHAT THEY ALL SAY.', () => {
-          setTimeout(() => {
-            typeResponse('> REQUEST ACCESS BELOW.', () => {
-              setPhase('form');
-            });
-          }, 2000);
-        });
+        setNarrationIndex(prev => prev + 1);
+        setCharIndex(0);
+        setPhase('typing');
       }
     }
-  };
-
-  // ── Helper: type a response line character by character ──
-  const typeResponse = (text, onComplete) => {
-    let curIdx = 0;
-    setTypedText('');
-    const interval = setInterval(() => {
-      curIdx++;
-      setTypedText(text.substring(0, curIdx));
-      if (curIdx >= text.length) {
-        clearInterval(interval);
-        setTimeout(() => {
-          setHistory(prev => [...prev, text]);
-          setTypedText('');
-          if (onComplete) onComplete();
-        }, 1000);
-      }
-    }, 30);
   };
 
   // ── Handle Chapter 2 form submission ──
@@ -323,7 +294,7 @@ const TheTerminal = ({ onClose }) => {
             </div>
           ))}
 
-          {(phase === 'typing' || phase === 'response') && (
+          {(phase === 'typing') && (
             <div>
               {typedText}<span className="terminal-cursor">█</span>
             </div>
@@ -398,7 +369,7 @@ const TheTerminal = ({ onClose }) => {
                 onMouseEnter={(e) => { e.target.style.background = '#00ff0020'; }}
                 onMouseLeave={(e) => { e.target.style.background = 'transparent'; }}
               >
-                &gt; REQUEST ACCESS
+                &gt; I AM READY
               </div>
             </div>
           )}

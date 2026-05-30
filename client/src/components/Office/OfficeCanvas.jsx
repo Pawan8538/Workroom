@@ -16,18 +16,34 @@ import SpeechBubble from './SpeechBubble';
 import { AGENT_DIALOGUE } from '../../constants/AGENT_DIALOGUE';
 import { OFFICE_BOUNDS } from '../../constants/OFFICE_LAYOUT';
 
-const SpeechBubbleProjector = ({ agents, bubbleCoords }) => {
-  const { camera } = useThree();
-  
+const SpeechBubbleProjector = ({ agents, bubbleCoords, meetingPositionsRef, isMeetingActive, setBubbleCoordsState }) => {
+  const { camera, scene } = useThree();
+
+  useEffect(() => {
+    let archivistLight = null;
+    scene.traverse((obj) => {
+      if (obj.isPointLight && obj.color.getHexString() === 'ff0044') {
+        archivistLight = obj;
+      }
+    });
+
+    if (archivistLight) {
+      archivistLight.intensity = isMeetingActive ? 5.0 : 2.0;
+    }
+  }, [isMeetingActive, scene]);
+
   useFrame(() => {
     agents.forEach(agent => {
-      const vector = new Vector3(agent.x, 1.5, agent.z || agent.y);
+      const overridePos = meetingPositionsRef.current ? meetingPositionsRef.current[agent.name] : null;
+      const agentX = overridePos ? overridePos.x : agent.x;
+      const agentZ = overridePos ? overridePos.z : (agent.z || agent.y);
+      const vector = new Vector3(agentX, 1.5, agentZ);
       vector.project(camera);
       const screenX = (vector.x * 0.5 + 0.5) * window.innerWidth;
       const screenY = (-vector.y * 0.5 + 0.5) * window.innerHeight - 80;
 
       if (agent.name === 'KAEL') {
-        console.log('KAEL Bubble coords:', { screenX, screenY });
+        // console.log('KAEL Bubble coords:', { screenX, screenY });
       }
 
       bubbleCoords.current[agent.name] = {
@@ -35,20 +51,37 @@ const SpeechBubbleProjector = ({ agents, bubbleCoords }) => {
         screenY
       };
     });
+    setBubbleCoordsState({ ...bubbleCoords.current });
   });
 
   return null;
 };
 
+// ── Camera zoom animator — runs inside Canvas so it has access to the camera ──
+const CameraZoomAnimator = ({ freezeZoomRef }) => {
+  const { camera } = useThree();
 
-const OfficeCanvas = ({ agents: socketAgents = [], logs = [], thirdWallAgent = null }) => {
+  useFrame((_, delta) => {
+    const targetZoom = freezeZoomRef.current ? 55 : 38;
+    // Lerp speed: covers the full range in ~2s (factor ~0.5 per second)
+    const lerpFactor = 1 - Math.pow(0.008, delta);
+    camera.zoom = camera.zoom + (targetZoom - camera.zoom) * lerpFactor;
+    camera.updateProjectionMatrix();
+  });
+
+  return null;
+};
+
+const OfficeCanvas = ({ agents: socketAgents = [], logs = [], thirdWallAgent = null, isMeetingActive = false, meetingStartedAt = null, ariaTaskAssignedAt = null, fourthWallAt = null }) => {
   const [selectedAgent, setSelectedAgent] = useState(null);
+  // Ref shared with CameraZoomAnimator — true when KAEL is frozen
+  const freezeZoomRef = useRef(false);
 
   // ── Use socket-provided agents if available, otherwise fallback ──
   const [localAgents, setLocalAgents] = useState([
-    { id: 'aria',  name: 'ARIA', role: 'Product Manager',     color: '#00f5ff', symbol: 'Ω', x: -8, y: -4, status: 'idle', task: null },
-    { id: 'kael',  name: 'KAEL', role: 'Backend Developer',   color: '#ff8a00', symbol: 'λ', x: 0,  y: 0,  status: 'idle', task: null },
-    { id: 'zeno',  name: 'ZENO', role: 'QA Engineer',         color: '#a855f7', symbol: 'Δ', x: 8,  y: 4,  status: 'idle', task: null },
+    { id: 'aria', name: 'ARIA', role: 'Product Manager', color: '#00f5ff', symbol: 'Ω', x: -8, y: -4, status: 'idle', task: null },
+    { id: 'kael', name: 'KAEL', role: 'Backend Developer', color: '#ff8a00', symbol: 'λ', x: 0, y: 0, status: 'idle', task: null },
+    { id: 'zeno', name: 'ZENO', role: 'QA Engineer', color: '#a855f7', symbol: 'Δ', x: 8, y: 4, status: 'idle', task: null },
   ]);
 
   // ── Merge socket agents into local state when they arrive ──
@@ -62,9 +95,9 @@ const OfficeCanvas = ({ agents: socketAgents = [], logs = [], thirdWallAgent = n
     }
   }, [socketAgents]);
 
-  // ── Detect if any meeting is in progress (for TheIntern) ──
-  const isMeetingActive = useMemo(() => {
-    return localAgents.some(a => a.status === 'meeting');
+  const agentTerminalContent = useMemo(() => {
+    const goalActive = localAgents.some(a => !!a.task);
+    return goalActive ? 'active' : 'idle';
   }, [localAgents]);
 
   // ── TheIntern dismiss handler — pushes to log via socket ──
@@ -76,22 +109,107 @@ const OfficeCanvas = ({ agents: socketAgents = [], logs = [], thirdWallAgent = n
     }
   }, []);
 
+  // Sync freeze ref whenever thirdWallAgent changes
+  useEffect(() => {
+    freezeZoomRef.current = thirdWallAgent === 'kael';
+  }, [thirdWallAgent]);
+
+  // ── Event-triggered speech bubbles ──
+
+  // simulation:meetingStarted → ZENO speaks before agents walk
+  useEffect(() => {
+    if (!meetingStartedAt) return;
+    setBubbles(prev => ({ ...prev, ZENO: { text: 'We need to align on the current session.', visible: true } }));
+    const hide = setTimeout(() => {
+      setBubbles(prev => ({ ...prev, ZENO: { ...prev.ZENO, visible: false } }));
+    }, 5000);
+    return () => clearTimeout(hide);
+  }, [meetingStartedAt]);
+
+  // agent:taskAssigned for ARIA → ARIA shows her first taskExecution line
+  useEffect(() => {
+    if (!ariaTaskAssignedAt) return;
+    const line = AGENT_DIALOGUE.ARIA?.taskExecution?.[0] || 'Acknowledged. Initiating task.';
+    setBubbles(prev => ({ ...prev, ARIA: { text: line, visible: true } }));
+    const hide = setTimeout(() => {
+      setBubbles(prev => ({ ...prev, ARIA: { ...prev.ARIA, visible: false } }));
+    }, 4000);
+    return () => clearTimeout(hide);
+  }, [ariaTaskAssignedAt]);
+
+  // simulation:fourthWallTrigger → ZENO delivers final line before office dims
+  useEffect(() => {
+    if (!fourthWallAt) return;
+    setBubbles(prev => ({ ...prev, ZENO: { text: 'Analysis complete. Subject profile finalized.', visible: true } }));
+    const hide = setTimeout(() => {
+      setBubbles(prev => ({ ...prev, ZENO: { ...prev.ZENO, visible: false } }));
+    }, 4000);
+    return () => clearTimeout(hide);
+  }, [fourthWallAt]);
+
   const [introComplete, setIntroComplete] = useState(false);
   const [fadeBlack, setFadeBlack] = useState(true);
   const [showPathHint, setShowPathHint] = useState(false);
   const [isTerminalOpen, setIsTerminalOpen] = useState(false);
   const [hasTerminalBeenUsed, setHasTerminalBeenUsed] = useState(false);
 
+  const meetingPositionsRef = useRef(null);
+  const audioCtxRef = useRef(null);
+  const oscillatorRef = useRef(null);
+  const gainNodeRef = useRef(null);
+
+  useEffect(() => {
+    if (isMeetingActive) {
+      meetingPositionsRef.current = {
+        ARIA: { x: -1, z: -5 },
+        KAEL: { x: 0, z: -5 },
+        ZENO: { x: 1, z: -5 }
+      };
+
+      if (!audioCtxRef.current) {
+        audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      const ctx = audioCtxRef.current;
+      if (ctx.state === 'suspended') ctx.resume();
+
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(80, ctx.currentTime);
+      gain.gain.setValueAtTime(0.05, ctx.currentTime);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+
+      oscillatorRef.current = osc;
+      gainNodeRef.current = gain;
+    } else {
+      meetingPositionsRef.current = null;
+      if (oscillatorRef.current) {
+        oscillatorRef.current.stop();
+        oscillatorRef.current.disconnect();
+        oscillatorRef.current = null;
+      }
+      if (gainNodeRef.current) {
+        gainNodeRef.current.disconnect();
+        gainNodeRef.current = null;
+      }
+    }
+  }, [isMeetingActive]);
+
   const [bubbles, setBubbles] = useState({
-    ARIA: {text:'', visible:false}, 
-    KAEL: {text:'', visible:false}, 
-    ZENO: {text:'', visible:false}
+    ARIA: { text: '', visible: false },
+    KAEL: { text: '', visible: false },
+    ZENO: { text: '', visible: false }
   });
   const bubbleCoords = useRef({
     ARIA: { screenX: 0, screenY: 0 },
     KAEL: { screenX: 0, screenY: 0 },
     ZENO: { screenX: 0, screenY: 0 }
   });
+  const [bubbleCoordsState, setBubbleCoordsState] = useState({});
 
   const taskExecutionAgentsRef = useRef({ ARIA: false, KAEL: false, ZENO: false });
   const prevTasksRef = useRef({ ARIA: null, KAEL: null, ZENO: null });
@@ -174,12 +292,12 @@ const OfficeCanvas = ({ agents: socketAgents = [], logs = [], thirdWallAgent = n
       interval = setInterval(() => {
         const agentsList = ['ARIA', 'KAEL', 'ZENO'];
         const randomAgent = agentsList[Math.floor(Math.random() * agentsList.length)];
-        
+
         const isWorking = taskExecutionAgentsRef.current[randomAgent];
         const dialogs = isWorking
           ? (AGENT_DIALOGUE[randomAgent]?.taskExecution || [])
           : (AGENT_DIALOGUE[randomAgent]?.normal || []);
-          
+
         const randomLine = dialogs[Math.floor(Math.random() * dialogs.length)];
 
         setBubbles(prev => ({
@@ -271,7 +389,8 @@ const OfficeCanvas = ({ agents: socketAgents = [], logs = [], thirdWallAgent = n
 
       <Canvas shadows gl={{ antialias: true }}>
         {/* Isometric Camera Setup */}
-        <OrthographicCamera makeDefault position={[25, 22, 25]} zoom={32} near={0.1} far={1000} />
+        <OrthographicCamera makeDefault position={[25, 22, 25]} zoom={38} near={0.1} far={1000} />
+        <CameraZoomAnimator freezeZoomRef={freezeZoomRef} />
         <OrbitControls
           enableRotate={false}
           enablePan={false}
@@ -347,23 +466,31 @@ const OfficeCanvas = ({ agents: socketAgents = [], logs = [], thirdWallAgent = n
           </group>
 
           {/* Office Desks & Architecture (Now fully encapsulated in DeskGrid) */}
-          <DeskGrid onTerminalClick={() => {
-            if (!hasTerminalBeenUsed) {
-              setIsTerminalOpen(true);
-            }
-          }} />
+          <DeskGrid
+            onTerminalClick={() => {
+              if (!hasTerminalBeenUsed) {
+                setIsTerminalOpen(true);
+              }
+            }}
+            agentTerminalContent={agentTerminalContent}
+          />
         </group>
 
         {/* ── Dynamic Agents ────────────────────────────── */}
-        {localAgents.map(agent => (
-          <AgentDot
-            key={agent.id}
-            {...agent}
-            isSelected={selectedAgent === agent.id}
-            isFrozen={thirdWallAgent === agent.id}
-            onClick={() => setSelectedAgent(agent.id === selectedAgent ? null : agent.id)}
-          />
-        ))}
+        {localAgents.map(agent => {
+          const overridePos = meetingPositionsRef.current ? meetingPositionsRef.current[agent.name] : null;
+          return (
+            <AgentDot
+              key={agent.id}
+              {...agent}
+              overrideX={overridePos?.x}
+              overrideZ={overridePos?.z}
+              isSelected={selectedAgent === agent.id}
+              isFrozen={thirdWallAgent === agent.id}
+              onClick={() => setSelectedAgent(agent.id === selectedAgent ? null : agent.id)}
+            />
+          );
+        })}
 
         {/* ── Glowing Path Hint (Idle > 20s) ── */}
         {showPathHint && (
@@ -388,7 +515,7 @@ const OfficeCanvas = ({ agents: socketAgents = [], logs = [], thirdWallAgent = n
           onDismiss={handleInternDismiss}
         />
 
-        <SpeechBubbleProjector agents={localAgents} bubbleCoords={bubbleCoords} />
+        <SpeechBubbleProjector agents={localAgents} bubbleCoords={bubbleCoords} meetingPositionsRef={meetingPositionsRef} isMeetingActive={isMeetingActive} setBubbleCoordsState={setBubbleCoordsState} />
 
         <Environment preset="night" />
         <ContactShadows
@@ -419,8 +546,8 @@ const OfficeCanvas = ({ agents: socketAgents = [], logs = [], thirdWallAgent = n
             text={bubbles[agentName]?.text || ''}
             visible={bubbles[agentName]?.visible || false}
             agentColor={agent?.color}
-            screenX={bubbleCoords.current[agentName]?.screenX || 0}
-            screenY={bubbleCoords.current[agentName]?.screenY || 0}
+            screenX={bubbleCoordsState[agentName]?.screenX || 0}
+            screenY={bubbleCoordsState[agentName]?.screenY || 0}
           />
         );
       })}

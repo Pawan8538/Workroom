@@ -10,15 +10,15 @@
 export const AGENT_DIALOGUE = {
   ARIA: {
     // Fired when the observer selects/clicks ARIA initially
-    greeting: "Observer session active. Continuing.",
+    greeting: "ARIA. I manage this office. Everything runs through me first.",
     
     // Ambient dialogue entries broadcasted during regular office cycles
     normal: [
-      "Let me know when the build is ready.",
-      "I am moving the deadline. Something came up.",
-      "Did anyone check on the new arrival?",
-      "Sprint adjusted. Accounting for the new variable.",
-      "Workroom initialized. All systems nominal."
+      "Still waiting on sign-off from above. Hold the current phase.",
+      "Has anyone checked on our visitor today?",
+      "The timeline moved again. Someone made a call I was not part of.",
+      "Keep this between us for now. We are not ready.",
+      "Everything is on track. Proceed as directed."
     ],
     
     // Active task execution lines showing operational progress
@@ -38,7 +38,7 @@ export const AGENT_DIALOGUE = {
   
   KAEL: {
     // Fired when the observer selects/clicks KAEL initially
-    greeting: "Observer in the room. Carrying on.",
+    greeting: "KAEL. Backend. I build the systems underneath everything.",
     
     // Ambient dialogue entries broadcasted during regular office cycles
     normal: [
@@ -69,15 +69,15 @@ export const AGENT_DIALOGUE = {
   
   ZENO: {
     // Fired when the observer selects/clicks ZENO initially
-    greeting: "Observer detected. Monitoring.",
+    greeting: "ZENO. Quality. Nothing leaves here without my sign-off.",
     
     // Ambient dialogue entries broadcasted during regular office cycles
     normal: [
-      "The test is passing but something feels off.",
-      "I am seeing unusual activity in the session data.",
-      "Should we tell them or let them figure it out?",
-      "Session duration exceeding baseline. Interesting.",
-      "Anomaly within expected parameters. Continuing."
+      "This one is different. I cannot explain it but I feel it.",
+      "I flagged something three cycles ago. Still no response.",
+      "The numbers are fine. The numbers are always fine. That is what worries me.",
+      "Someone has been in this office longer than anyone before.",
+      "I do not think they are here by accident."
     ],
     
     // Active task execution lines showing operational progress

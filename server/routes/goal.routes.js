@@ -16,14 +16,17 @@ router.post('/', async (req, res) => {
 
     console.log(`[GoalRoute] New goal received: "${goal}"`);
 
-    // 1. Save the goal to MongoDB
-    const savedGoal = await Goal.create({ text: goal.trim() });
+    // Reset any stale fourthWallTriggered state from previous sessions (temp testing fix)
+    await Goal.updateMany({}, { fourthWallTriggered: false });
+    const savedGoal = await Goal.create({ text: goal.trim(), fourthWallTriggered: false });
     console.log(`[GoalRoute] Goal saved with id: ${savedGoal._id}`);
 
     // 2. Call the LLM to split into tasks
     let taskArray;
     try {
       taskArray = await splitGoalIntoTasks(goal.trim());
+      const tasks = taskArray;
+      console.log('[GOAL] Tasks created:', tasks);
     } catch (llmError) {
       // Mark goal as failed if LLM chokes
       savedGoal.status = 'Failed';
@@ -54,6 +57,69 @@ router.post('/', async (req, res) => {
     await savedGoal.save();
 
     console.log(`[GoalRoute] ${savedTasks.length} tasks created and linked to goal`);
+
+    const io = req.app.get('io') || global._io;
+
+    // Emit each task assignment to the correct agent
+    savedTasks.forEach(task => {
+      io.emit('agent:taskAssigned', {
+        agentId: task.assignedRole.toLowerCase(),
+        task: {
+          id: task.taskId,
+          title: task.title,
+          description: task.description,
+          priority: task.priority,
+          estimatedCycles: task.estimatedCycles,
+        },
+        timestamp: new Date().toISOString(),
+      });
+
+      io.emit('agent:stateChanged', {
+        agentId: task.assignedRole.toLowerCase(),
+        state: 'working',
+        detail: task.title,
+        timestamp: new Date().toISOString(),
+      });
+    });
+
+    // Simulate task completion after estimatedCycles * 6 seconds
+    // Then check if all tasks done and trigger fourth wall
+    savedTasks.forEach(task => {
+      const delay = (task.estimatedCycles || 3) * 6000;
+      setTimeout(async () => {
+        io.emit('agent:stateChanged', {
+          agentId: task.assignedRole.toLowerCase(),
+          state: 'idle',
+          detail: null,
+          timestamp: new Date().toISOString(),
+        });
+
+        // Mark task complete in DB
+        await Task.findByIdAndUpdate(task._id, { status: 'completed' });
+
+        // Check if ALL tasks for this goal are now complete
+        const remaining = await Task.countDocuments({
+          goal: task.goal,
+          status: { $ne: 'completed' }
+        });
+
+        console.log(`[GoalRoute] Task "${task.title}" complete. Remaining: ${remaining}`);
+
+        if (remaining === 0) {
+  const updated = await Goal.findOneAndUpdate(
+    { _id: task.goal, fourthWallTriggered: { $ne: true } },
+    { fourthWallTriggered: true }
+  );
+  if (updated) {
+    console.log('[GoalRoute] All tasks complete — triggering fourth wall');
+    io.emit('simulation:fourthWallTrigger', {
+      reason: 'All tasks completed.',
+      timestamp: new Date().toISOString(),
+    });
+  }
+}
+      }, delay);
+    });
 
     // 5. Return everything to the frontend
     res.status(201).json({

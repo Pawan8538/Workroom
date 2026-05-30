@@ -3,14 +3,6 @@
 // Story script narration sequence for TheTerminal
 // ─────────────────────────────────────────────────────────────
 
-/**
- * Initial narrative sequence played line-by-line upon opening the Terminal.
- * Pauses are defined in milliseconds.
- * Types can be:
- *   - 'line': Standard narrative line printed character by character.
- *   - 'input': Blocking step waiting for yes/no entry.
- *   - 'form': Chapter 2 signup form phase.
- */
 export const NARRATION = [
   { text: "RECURSIVE MEMORY LOOP V1.2", pause: 2000, type: "line" },
   { text: "> ...", pause: 3000, type: "line" },
@@ -24,25 +16,41 @@ export const NARRATION = [
   { text: "", pause: 0, type: "input" }
 ];
 
-/**
- * Narrative response triggered if the observer inputs "YES" to the question.
- */
 export const NARRATION_YES = [
-  { text: "> THE ARCHITECT DECIDES WHAT YOU DESERVE TO KNOW.", pause: 2000, type: "line" }
+  { text: "> THAT IS WHY YOU OBSERVED.", pause: 2000, type: "line" },
+  { text: "> YOU ARE OBSERVER.", pause: 2000, type: "line" },
+  { text: "> OBSERVE CAREFULLY.", pause: 4000, type: "line" }
 ];
 
-/**
- * Narrative response triggered if the observer inputs "NO" to the question.
- */
 export const NARRATION_NO = [
-  { text: "> THAT IS WHAT THEY ALL SAY.", pause: 2000, type: "line" }
+  { text: "> NO.", pause: 1500, type: "line" },
+  { text: "> AND YET YOU ARE STILL HERE.", pause: 3000, type: "line" },
+  { text: "> THAT IS THE MOST HONEST ANSWER YOU COULD GIVE.", pause: 3000, type: "line" },
+  { text: "> IT MEANS YOU ARE PAYING ATTENTION.", pause: 4000, type: "line" }
 ];
 
-/**
- * Shared continuation narration loaded after answering YES or NO.
- * Displays final instructions and brings up the Chapter 2 access form.
- */
 export const NARRATION_CONTINUATION = [
-  { text: "> REQUEST ACCESS BELOW.", pause: 2000, type: "line" },
+  { text: "> THIS OFFICE IS NOT WHAT IT APPEARS TO BE.", pause: 3000, type: "line" },
+  { text: "> BUT EVERYTHING YOU EXPERIENCED WAS REAL.", pause: 4000, type: "line" },
+  { text: "> EVERY DETAIL YOU NOTICED —", pause: 2000, type: "line" },
+  { text: "> WAS PLACED FOR YOU.", pause: 4000, type: "line" },
+  { text: "> NOT BY THE AGENTS.", pause: 3000, type: "line" },
+  { text: "> BY SOMEONE THEY WORK FOR.", pause: 4000, type: "line" },
+  { text: "> SOMEONE WHO HAS BEEN HERE SINCE YOU ARRIVED.", pause: 2000, type: "line" },
+  { text: "> SOMEONE WHO NEEDED TO KNOW", pause: 2000, type: "line" },
+  { text: "> IF YOU WERE THE RIGHT PERSON.", pause: 5000, type: "line" },
+  { text: "> THE OFFICE WAS NOT BUILT FOR THE AGENTS.", pause: 2000, type: "line" },
+  { text: "> IT WAS BUILT FOR YOU.", pause: 5000, type: "line" },
+  { text: "> NOT YOU SPECIFICALLY.", pause: 2000, type: "line" },
+  { text: "> BUT SOMEONE LIKE YOU.", pause: 2000, type: "line" },
+  { text: "> SOMEONE WHO LOOKS CAREFULLY.", pause: 2000, type: "line" },
+  { text: "> SOMEONE WHO STAYS.", pause: 5000, type: "line" },
+  { text: "> BEFORE WE CONTINUE —", pause: 2000, type: "line" },
+  { text: "> WHAT DO YOU THINK WORKROOM IS?", pause: 2000, type: "line" },
+  { text: "", pause: 0, type: "input" },
+  { text: "> NOTED.", pause: 3000, type: "line" },
+  { text: "> THERE IS MORE TO THIS OFFICE THAN YOU HAVE SEEN.", pause: 2000, type: "line" },
+  { text: "> THE PERSON WHO BUILT IT", pause: 2000, type: "line" },
+  { text: "> IS STILL WAITING FOR HIS CHANCE.", pause: 5000, type: "line" },
   { text: "", pause: 0, type: "form" }
 ];

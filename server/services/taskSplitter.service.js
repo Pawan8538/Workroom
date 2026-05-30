@@ -10,7 +10,7 @@ const openai = new OpenAI({
   apiKey: process.env.OPENROUTER_API_KEY,
 });
 
-const MODEL = 'meta-llama/llama-3-8b-instruct:free';
+const MODEL = 'openrouter/auto';
 
 // ─────────────────────────────────────────────────────────────
 // System prompt — forces strict JSON array output
