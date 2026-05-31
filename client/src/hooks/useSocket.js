@@ -25,6 +25,7 @@ export const useSocket = () => {
   const [agents, setAgents] = useState([]);
   const [logs, setLogs] = useState([]);
   const [isFourthWallTriggered, setIsFourthWallTriggered] = useState(false);
+  const [isDeliverableReady, setIsDeliverableReady] = useState(false);
   const [isMeetingActive, setIsMeetingActive] = useState(null); // true during spontaneous meeting
   const [isConnected, setIsConnected] = useState(false);
   const [thirdWallAgent, setThirdWallAgent] = useState(null);  // agentId currently frozen
@@ -246,6 +247,15 @@ export const useSocket = () => {
     });
 
     // ─────────────────────────────────────────────────────
+    // EVENT: simulation:deliverableReady
+    // All tasks done. Ready to show deliverable screen.
+    // ─────────────────────────────────────────────────────
+    socket.on('simulation:deliverableReady', (data) => {
+      console.log('[Socket] ◈ Deliverable Ready');
+      setIsDeliverableReady(true);
+    });
+
+    // ─────────────────────────────────────────────────────
     // EVENT: simulation:fourthWallTrigger
     // All tasks done. The simulation becomes aware.
     // Triggers the dark cinematic overlay.
@@ -363,6 +373,7 @@ export const useSocket = () => {
     agents,
     logs,
     isFourthWallTriggered,
+    isDeliverableReady,
     isMeetingActive,      // true during the spontaneous meeting (cycle 5)
     isConnected,
     thirdWallAgent,

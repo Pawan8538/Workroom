@@ -110,20 +110,18 @@ const ArchitectTerminal = ({ onClose }) => {
       const sessionId = window.__doorkeeper?.sessionId || 'sess_' + Math.random().toString(36).substr(2, 9);
       const visitStats = { timeSpent: 0, agentsClicked: [], paperFound: false, workroomAnswer: '' };
 
-      const res = await fetch('http://localhost:5000/api/chapter2/request', {
+      // Submit silently to admin panel — do NOT redirect to #chapter2
+      fetch('http://localhost:5000/api/chapter2/request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...formData, sessionId, visitStats })
-      });
+      }).catch(() => {}); // fire and forget
 
-      if (res.ok) {
-        window.location.hash = '#chapter2';
-        onClose('yes');
-      } else {
-        setFormError('Failed to submit. Please try again.');
-      }
+      // Transition to in-room Chapter 2 immediately
+      onClose('yes');
     } catch (err) {
-      setFormError('Network error.');
+      // Still proceed even if submit fails
+      onClose('yes');
     } finally {
       setIsSubmitting(false);
     }

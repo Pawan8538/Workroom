@@ -9,7 +9,7 @@ const router = express.Router();
 // POST /api/goal — Receive a goal, split it via LLM, persist to MongoDB
 router.post('/', async (req, res) => {
   try {
-    const { goal } = req.body;
+    const { goal, socketId } = req.body;
 
     if (!goal || typeof goal !== 'string' || !goal.trim()) {
       return res.status(400).json({ error: 'A non-empty goal string is required' });
@@ -60,11 +60,19 @@ router.post('/', async (req, res) => {
     console.log(`[GoalRoute] ${savedTasks.length} tasks created and linked to goal`);
 
     const io = req.app.get('io') || global._io;
+    const target = socketId ? io.to(socketId) : io;
+
+    const roleToAgentId = {
+      'pm': 'aria',
+      'backend': 'kael',
+      'qa': 'zeno'
+    };
 
     // Emit each task assignment to the correct agent
     savedTasks.forEach(task => {
-      io.emit('agent:taskAssigned', {
-        agentId: task.assignedRole.toLowerCase(),
+      const agentId = roleToAgentId[task.assignedRole.toLowerCase()] || task.assignedRole.toLowerCase();
+      target.emit('agent:taskAssigned', {
+        agentId: agentId,
         task: {
           id: task.taskId,
           title: task.title,
@@ -75,8 +83,8 @@ router.post('/', async (req, res) => {
         timestamp: new Date().toISOString(),
       });
 
-      io.emit('agent:stateChanged', {
-        agentId: task.assignedRole.toLowerCase(),
+      target.emit('agent:stateChanged', {
+        agentId: agentId,
         state: 'working',
         detail: task.title,
         timestamp: new Date().toISOString(),
@@ -86,7 +94,6 @@ router.post('/', async (req, res) => {
       (async () => {
         try {
           let lines = [];
-          const agentId = task.assignedRole.toLowerCase();
           if (agentId === 'kael') {
             lines = await generateCodeContent(task.title, savedGoal.text);
           } else if (agentId === 'zeno') {
@@ -96,7 +103,7 @@ router.post('/', async (req, res) => {
           }
           
           if (lines && lines.length > 0) {
-            io.emit('agent:terminalContent', {
+            target.emit('agent:terminalContent', {
               agentId,
               lines,
               taskId: task.taskId
@@ -113,8 +120,9 @@ router.post('/', async (req, res) => {
     savedTasks.forEach(task => {
       const delay = (task.estimatedCycles || 3) * 6000;
       setTimeout(async () => {
-        io.emit('agent:stateChanged', {
-          agentId: task.assignedRole.toLowerCase(),
+        const agentId = roleToAgentId[task.assignedRole.toLowerCase()] || task.assignedRole.toLowerCase();
+        target.emit('agent:stateChanged', {
+          agentId: agentId,
           state: 'idle',
           detail: null,
           timestamp: new Date().toISOString(),
@@ -132,18 +140,18 @@ router.post('/', async (req, res) => {
         console.log(`[GoalRoute] Task "${task.title}" complete. Remaining: ${remaining}`);
 
         if (remaining === 0) {
-  const updated = await Goal.findOneAndUpdate(
-    { _id: task.goal, fourthWallTriggered: { $ne: true } },
-    { fourthWallTriggered: true }
-  );
-  if (updated) {
-    console.log('[GoalRoute] All tasks complete — triggering fourth wall');
-    io.emit('simulation:fourthWallTrigger', {
-      reason: 'All tasks completed.',
-      timestamp: new Date().toISOString(),
-    });
-  }
-}
+          const updated = await Goal.findOneAndUpdate(
+            { _id: task.goal, fourthWallTriggered: { $ne: true } },
+            { fourthWallTriggered: true }
+          );
+          if (updated) {
+            console.log('[GoalRoute] All tasks complete — triggering deliverableReady');
+            target.emit('simulation:deliverableReady', {
+              reason: 'All tasks completed.',
+              timestamp: new Date().toISOString(),
+            });
+          }
+        }
       }, delay);
     });
 

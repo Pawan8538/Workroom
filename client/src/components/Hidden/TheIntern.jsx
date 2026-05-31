@@ -111,6 +111,7 @@ const TheIntern = ({ isMeetingActive, onDismiss }) => {
       <mesh
         position={[5.5, 1.0, -2.8]}
         onClick={handleClick}
+        renderOrder={10}
       >
         <cylinderGeometry args={[0.12, 0.18, 1.5, 8]} />
         <meshBasicMaterial
@@ -119,6 +120,7 @@ const TheIntern = ({ isMeetingActive, onDismiss }) => {
           transparent
           opacity={0.0}
           depthWrite={false}
+          depthTest={false}
         />
       </mesh>
 
@@ -131,6 +133,7 @@ const TheIntern = ({ isMeetingActive, onDismiss }) => {
         <mesh
           position={[5.5, 0.01, -2.8]}
           rotation={[-Math.PI / 2, 0, 0]}
+          renderOrder={10}
         >
           <circleGeometry args={[0.3, 16]} />
           <meshBasicMaterial
@@ -138,6 +141,7 @@ const TheIntern = ({ isMeetingActive, onDismiss }) => {
             transparent
             opacity={isMeetingActive ? 0.03 : 0.0}
             depthWrite={false}
+            depthTest={false}
           />
         </mesh>
       )}

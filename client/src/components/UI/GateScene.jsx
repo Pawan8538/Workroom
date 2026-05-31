@@ -88,7 +88,7 @@ const GateScene = ({ onComplete }) => {
             : 'transform 4.0s cubic-bezier(0.1, 0.9, 0.2, 1)', // Slow creak when hovered
           transform: isOpen 
             ? 'rotateY(-95deg)' 
-            : (isHovered ? 'rotateY(-5deg)' : 'rotateY(0deg)'),
+            : (isHovered ? 'rotateY(-45deg)' : 'rotateY(0deg)'),
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'flex-end', // Put handle on the right

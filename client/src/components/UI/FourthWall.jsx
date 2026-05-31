@@ -51,13 +51,16 @@ const FourthWall = ({ onArchitectSummon }) => {
     }, 4000);
     timersRef.current.push(t4);
 
-    // Phase 5 (5s): emit window.__workroom_sound.playClockTick() then window.__workroom_stopClock()
+    // Phase 5 (5s): emit window.__workroom_sound.playClockTick() then stop the clocks
     const t5 = setTimeout(() => {
       if (window.__workroom_sound?.playClockTick) {
         window.__workroom_sound.playClockTick();
       }
       if (window.__workroom_stopClock) {
         window.__workroom_stopClock();
+      }
+      if (window.__workroom_sound?.stopClockInterval) {
+        window.__workroom_sound.stopClockInterval();
       }
     }, 5000);
     timersRef.current.push(t5);

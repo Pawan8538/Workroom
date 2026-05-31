@@ -36,15 +36,18 @@ const ChapterTwo = () => {
 
       setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
 
+      let buffer = '';
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
-        const chunkStr = decoder.decode(value);
-        const lines = chunkStr.split('\n');
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
         for (const line of lines) {
-          if (line.startsWith('data: ') && line !== 'data: [DONE]') {
+          const trimmedLine = line.trim();
+          if (trimmedLine.startsWith('data: ') && trimmedLine !== 'data: [DONE]') {
             try {
-              const data = JSON.parse(line.substring(6));
+              const data = JSON.parse(trimmedLine.substring(6));
               setMessages(prev => {
                 const updated = [...prev];
                 updated[updated.length - 1].content += data.text;

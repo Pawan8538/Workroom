@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { SOUNDS } from '../constants/SOUNDS';
 
 export function useSoundEngine() {
@@ -267,21 +267,24 @@ export function useSoundEngine() {
     }
   };
 
+  // Memoize all exposed functions to prevent re-renders when used in dependency arrays
+  const api = React.useMemo(() => ({
+    playAmbientHum,
+    stopAmbientHum,
+    playKeyboardLoop,
+    stopKeyboardLoop,
+    playClockTick,
+    playMeetingMuffled,
+    stopMeetingMuffled,
+    stopAllSounds,
+    startFoundationSounds,
+    stopClockInterval,
+    unlock: unlockAudioContext
+  }), []);
+
   // Expose to window for global access/interop
   useEffect(() => {
-    window.__workroom_sound = {
-      playAmbientHum,
-      stopAmbientHum,
-      playKeyboardLoop,
-      stopKeyboardLoop,
-      playClockTick,
-      playMeetingMuffled,
-      stopMeetingMuffled,
-      stopAllSounds,
-      startFoundationSounds,
-      stopClockInterval,
-      unlock: unlockAudioContext
-    };
+    window.__workroom_sound = api;
 
     // Global hook click/keydown listeners to unlock AudioContext early
     const handleGesture = () => {
@@ -299,17 +302,5 @@ export function useSoundEngine() {
     };
   }, []);
 
-  return {
-    playAmbientHum,
-    stopAmbientHum,
-    playKeyboardLoop,
-    stopKeyboardLoop,
-    playClockTick,
-    playMeetingMuffled,
-    stopMeetingMuffled,
-    stopAllSounds,
-    startFoundationSounds,
-    stopClockInterval,
-    unlock: unlockAudioContext
-  };
+  return api;
 }

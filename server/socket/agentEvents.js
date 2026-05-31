@@ -214,7 +214,29 @@ export const handleAgentEvents = (io, socket) => {
       timestamp: new Date().toISOString(),
     });
 
-    // Push a system log visible to all
+    io.emit('agent:logEntry', {
+      agentId: 'SYSTEM',
+      message: reason,
+      type: 'system',
+      timestamp: new Date().toISOString(),
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────
+  // EVENT: simulation:triggerFourthWall
+  // Emitted by the client (App.jsx) when the terminal closes.
+  // ─────────────────────────────────────────────────────────
+  socket.on('simulation:triggerFourthWall', (data) => {
+    const reason = 'All tasks completed. The simulation is aware.';
+    console.log('[SOCKET] Fourth wall triggered by client');
+
+    console.log(`[AgentEvent] ◈◈◈ FOURTH WALL BREAK ◈◈◈ — ${reason}`);
+
+    io.emit('simulation:fourthWallTrigger', {
+      reason,
+      timestamp: new Date().toISOString(),
+    });
+
     io.emit('agent:logEntry', {
       agentId: 'SYSTEM',
       message: reason,

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-const GoalInput = () => {
+const GoalInput = ({ socket }) => {
   const [goal, setGoal] = useState('');
 
   const handleSubmit = async (e) => {
@@ -12,7 +12,7 @@ const GoalInput = () => {
       const response = await fetch('http://localhost:5000/api/goal', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ goal: currentGoal })
+        body: JSON.stringify({ goal: currentGoal, socketId: socket?.id })
       });
       const data = await response.json();
       console.log('[GoalInput] Response:', data);
@@ -23,6 +23,21 @@ const GoalInput = () => {
 
   return (
     <>
+      <div style={{
+        position: 'absolute',
+        bottom: '80px', // Position above the input bar
+        left: '50%',
+        transform: 'translateX(-50%)',
+        color: '#00f5ff',
+        fontFamily: 'monospace',
+        fontSize: '0.8rem',
+        letterSpacing: '2px',
+        opacity: 0.8,
+        zIndex: 100
+      }}>
+        DEPLOY A TASK TO WORKROOM
+      </div>
+      
       {/* Bottom Center Bar */}
       <div style={{
         position: 'absolute',
@@ -43,7 +58,7 @@ const GoalInput = () => {
             type="text"
             value={goal}
             onChange={(e) => setGoal(e.target.value)}
-            placeholder="Tell them what to build..."
+            placeholder="e.g. Build an authentication system"
             spellCheck="false"
             style={{
               flex: 1,
@@ -71,6 +86,39 @@ const GoalInput = () => {
             &gt;
           </button>
         </form>
+        {/* Suggestion Chips */}
+        <div style={{
+          position: 'absolute',
+          top: '100%',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          display: 'flex',
+          gap: '10px',
+          marginTop: '15px',
+          width: 'max-content',
+          zIndex: 100
+        }}>
+          {["Build an auth system", "Create a REST API", "Design a database schema", "Build a login page"].map((sug, i) => (
+            <div
+              key={i}
+              onClick={() => setGoal(sug)}
+              style={{
+                padding: '4px 10px',
+                background: 'rgba(0, 245, 255, 0.05)',
+                border: '1px solid rgba(0, 245, 255, 0.3)',
+                color: '#00f5ff',
+                fontSize: '0.75rem',
+                cursor: 'pointer',
+                fontFamily: 'monospace',
+                transition: 'all 0.2s',
+              }}
+              onPointerOver={(e) => { e.currentTarget.style.background = 'rgba(0, 245, 255, 0.15)'; e.currentTarget.style.borderColor = '#00f5ff'; }}
+              onPointerOut={(e) => { e.currentTarget.style.background = 'rgba(0, 245, 255, 0.05)'; e.currentTarget.style.borderColor = 'rgba(0, 245, 255, 0.3)'; }}
+            >
+              {sug}
+            </div>
+          ))}
+        </div>
       </div>
     </>
   );

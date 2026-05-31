@@ -23,18 +23,18 @@ const AgentDot = ({ name, role, color, symbol, x, y, status, task, isSelected, o
     const upperName = name ? name.toUpperCase() : '';
     if (upperName === 'ARIA') {
       return [
-        { x: -6, z: -5 },
-        { x: -4, z: -4 }
+        { x: -6, z: -4.5 },
+        { x: -5, z: -4.5 }
       ];
     } else if (upperName === 'KAEL') {
       return [
-        { x: 0, z: 0 },
-        { x: 1, z: 1 }
+        { x: 0, z: 1.2 },
+        { x: 1, z: 1.2 }
       ];
     } else if (upperName === 'ZENO') {
       return [
-        { x: 6, z: -4 },
-        { x: 5, z: -3 }
+        { x: 6, z: -2.8 },
+        { x: 5, z: -2.8 }
       ];
     }
     return [{ x: clampedX, z: clampedZ }];
@@ -102,7 +102,12 @@ const AgentDot = ({ name, role, color, symbol, x, y, status, task, isSelected, o
   return (
     <group>
       {/* ── The Agent Mesh ── */}
-      <group ref={meshRef} onClick={onClick}>
+      <group 
+        ref={meshRef} 
+        onClick={onClick}
+        onPointerOver={(e) => { e.stopPropagation(); document.body.style.cursor = 'pointer'; }}
+        onPointerOut={(e) => { document.body.style.cursor = 'auto'; }}
+      >
         {/* Head */}
         <mesh position={[0, 0.55, 0]} castShadow>
           <boxGeometry args={[0.3, 0.3, 0.3]} />

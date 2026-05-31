@@ -23,11 +23,7 @@ const TheTerminal = ({ onClose }) => {
   const [phase, setPhase] = useState('typing'); // typing, input, form
   const [inputValue, setInputValue] = useState('');
 
-  // ── Chapter 2 form state ──
-  const [formName, setFormName] = useState('');
-  const [formReason, setFormReason] = useState('');
-  const [formLinkedin, setFormLinkedin] = useState('');
-  const [formSubmitted, setFormSubmitted] = useState(false);
+  // ── Chapter 2 form state removed ──
 
   // ── Visitor data from Doorkeeper ──
   const [visitorData, setVisitorData] = useState({ 
@@ -81,8 +77,15 @@ const TheTerminal = ({ onClose }) => {
       return;
     }
 
-    if (currentItem.type === 'form') {
-      setPhase('form');
+    if (currentItem.type === 'input_final') {
+      setPhase('input_final');
+      return;
+    }
+
+    if (currentItem.type === 'end') {
+      setTimeout(() => {
+        onClose();
+      }, 1000);
       return;
     }
 
@@ -110,9 +113,8 @@ const TheTerminal = ({ onClose }) => {
     }
   }, [phase, currentScript, narrationIndex, charIndex, visitorData]);
 
-  // ── Focus input when phase changes ──
   useEffect(() => {
-    if (phase === 'input' && inputRef.current) {
+    if ((phase === 'input' || phase === 'input_final') && inputRef.current) {
       inputRef.current.focus();
     }
   }, [phase]);
@@ -143,7 +145,18 @@ const TheTerminal = ({ onClose }) => {
       setHistory(prev => [...prev, `> _ ${inputValue.toUpperCase()}`]);
       setInputValue('');
 
-      if (currentScript === NARRATION) {
+      if (phase === 'input_final') {
+        // Send answer to admin panel silently
+        fetch('/api/goal', { // Just sending it as a goal for now or we can use doorkeeper
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ goal: `[TERMINAL ANSWER] ${val}` })
+        }).catch(() => {});
+        
+        setNarrationIndex(prev => prev + 1);
+        setCharIndex(0);
+        setPhase('typing');
+      } else if (currentScript === NARRATION) {
         if (val === 'YES') {
           setCurrentScript([...NARRATION_YES, ...NARRATION_CONTINUATION]);
         } else {
@@ -152,54 +165,11 @@ const TheTerminal = ({ onClose }) => {
         setNarrationIndex(0);
         setCharIndex(0);
         setPhase('typing');
-      } else {
-        setNarrationIndex(prev => prev + 1);
-        setCharIndex(0);
-        setPhase('typing');
       }
     }
   };
 
-  // ── Handle Chapter 2 form submission ──
-  const handleFormSubmit = async () => {
-    if (!formName.trim() || !formReason.trim() || !formLinkedin.trim()) return;
-
-    try {
-      const sessionId = window.__doorkeeper?.sessionId || 'unknown';
-      await fetch('/api/chapter2/request', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: formName,
-          reason: formReason,
-          linkedinOrTwitter: formLinkedin,
-          sessionId
-        })
-      });
-      if (window.__doorkeeper) {
-        window.__doorkeeper.logChapter2Request();
-      }
-    } catch (err) {
-      // Silent fail
-    }
-
-    setFormSubmitted(true);
-    setHistory(prev => [...prev, '> REQUEST LOGGED. THE ARCHITECT HAS BEEN NOTIFIED.']);
-  };
-
-  // ── Shared input style for Chapter 2 form fields ──
-  const formInputStyle = {
-    background: 'transparent',
-    border: '1px solid #00ff00',
-    color: '#00ff00',
-    fontFamily: 'monospace',
-    fontSize: '12px',
-    padding: '6px 8px',
-    outline: 'none',
-    width: '100%',
-    boxSizing: 'border-box',
-    marginBottom: '8px',
-  };
+  // ── Chapter 2 form submission removed ──
 
   return (
     <>
@@ -300,7 +270,7 @@ const TheTerminal = ({ onClose }) => {
             </div>
           )}
 
-          {phase === 'input' && (
+          {(phase === 'input' || phase === 'input_final') && (
             <div style={{ display: 'flex', alignItems: 'center' }}>
               <span>&gt; _&nbsp;</span>
               <input
@@ -325,88 +295,8 @@ const TheTerminal = ({ onClose }) => {
             </div>
           )}
 
-          {phase === 'form' && !formSubmitted && (
-            <div style={{ marginTop: '12px', borderTop: '1px solid #00ff0030', paddingTop: '12px' }}>
-              <div style={{ marginBottom: '8px', color: '#00ff0080' }}>// CHAPTER 2 ACCESS REQUEST</div>
-              <div style={{ marginBottom: '4px' }}>DESIGNATION:</div>
-              <input
-                type="text"
-                value={formName}
-                onChange={(e) => setFormName(e.target.value)}
-                placeholder="YOUR NAME"
-                style={formInputStyle}
-              />
-              <div style={{ marginBottom: '4px' }}>PURPOSE:</div>
-              <input
-                type="text"
-                value={formReason}
-                onChange={(e) => setFormReason(e.target.value)}
-                placeholder="WHY DO YOU WANT ACCESS"
-                style={formInputStyle}
-              />
-              <div style={{ marginBottom: '4px' }}>VERIFICATION LINK:</div>
-              <input
-                type="text"
-                value={formLinkedin}
-                onChange={(e) => setFormLinkedin(e.target.value)}
-                placeholder="LINKEDIN OR TWITTER URL"
-                style={formInputStyle}
-              />
-              <div
-                onClick={handleFormSubmit}
-                style={{
-                  marginTop: '8px',
-                  padding: '8px 16px',
-                  border: '1px solid #00ff00',
-                  color: '#00ff00',
-                  fontFamily: 'monospace',
-                  fontSize: '12px',
-                  cursor: 'pointer',
-                  textAlign: 'center',
-                  transition: 'all 0.2s',
-                  background: 'transparent',
-                }}
-                onMouseEnter={(e) => { e.target.style.background = '#00ff0020'; }}
-                onMouseLeave={(e) => { e.target.style.background = 'transparent'; }}
-              >
-                &gt; I AM READY
-              </div>
-            </div>
-          )}
-
-          {phase === 'form' && formSubmitted && (
-            <div style={{ marginTop: '12px', color: '#00ff00' }}>
-              &gt; REQUEST LOGGED. THE ARCHITECT HAS BEEN NOTIFIED.
-            </div>
-          )}
+        {/* Form elements removed */}
         </div>
-
-        {/* ── Disconnect Close Button (Appears only during form phase) ── */}
-        {phase === 'form' && (
-          <button
-            onClick={onClose}
-            style={{
-              position: 'absolute',
-              bottom: '12px',
-              right: '12px',
-              background: 'transparent',
-              boxShadow: 'none',
-              border: '1px solid #00ff0050',
-              color: '#00ff00',
-              fontFamily: 'monospace',
-              fontSize: '12px',
-              padding: '6px 12px',
-              cursor: 'pointer',
-              zIndex: 20,
-              animation: 'termFadeIn 2s ease-in-out',
-              outline: 'none',
-            }}
-            onMouseEnter={(e) => { e.target.style.background = '#00ff0020'; }}
-            onMouseLeave={(e) => { e.target.style.background = 'transparent'; }}
-          >
-            &gt; DISCONNECT
-          </button>
-        )}
       </div>
     </>
   );

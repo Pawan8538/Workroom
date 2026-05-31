@@ -13,6 +13,7 @@ import TheIntern from '../Hidden/TheIntern';
 import DeskGrid from './DeskGrid';
 import TheTerminal from './TheTerminal';
 import SpeechBubble from './SpeechBubble';
+import ArchitectFigure from './ArchitectFigure';
 import { AGENT_DIALOGUE } from '../../constants/AGENT_DIALOGUE';
 import { OFFICE_BOUNDS } from '../../constants/OFFICE_LAYOUT';
 
@@ -37,10 +38,10 @@ const SpeechBubbleProjector = ({ agents, bubbleCoords, meetingPositionsRef, isMe
       const overridePos = meetingPositionsRef.current ? meetingPositionsRef.current[agent.name] : null;
       const agentX = overridePos ? overridePos.x : agent.x;
       const agentZ = overridePos ? overridePos.z : (agent.z || agent.y);
-      const vector = new Vector3(agentX, 1.5, agentZ);
+      const vector = new Vector3(agentX, 3.5, agentZ);
       vector.project(camera);
       const screenX = (vector.x * 0.5 + 0.5) * window.innerWidth;
-      const screenY = (-vector.y * 0.5 + 0.5) * window.innerHeight - 80;
+      const screenY = (-vector.y * 0.5 + 0.5) * window.innerHeight;
 
       if (agent.name === 'KAEL') {
         // console.log('KAEL Bubble coords:', { screenX, screenY });
@@ -58,7 +59,7 @@ const SpeechBubbleProjector = ({ agents, bubbleCoords, meetingPositionsRef, isMe
 };
 
 // ── Camera zoom animator — runs inside Canvas so it has access to the camera ──
-const CameraZoomAnimator = ({ freezeZoomRef, isMeetingActive, showArchitect }) => {
+const CameraZoomAnimator = ({ freezeZoomRef, isMeetingActive, showArchitect, meetingStartedAt }) => {
   const { camera } = useThree();
   const defaultPos = useMemo(() => new Vector3(25, 22, 25), []);
 
@@ -73,7 +74,7 @@ const CameraZoomAnimator = ({ freezeZoomRef, isMeetingActive, showArchitect }) =
       targetPos = new Vector3(25, 8, 25);
     } else if (freezeZoomRef.current) {
       targetPos = new Vector3(23, 22, 23); 
-    } else if (isMeetingActive) {
+    } else if (isMeetingActive && meetingStartedAt) {
       const waypoints = [
         new Vector3(25, 22, 25), // Center
         new Vector3(0, 22, 5),   // Observer
@@ -83,13 +84,23 @@ const CameraZoomAnimator = ({ freezeZoomRef, isMeetingActive, showArchitect }) =
         new Vector3(0, 22, -3),  // KAEL
         new Vector3(25, 22, 25)  // Center
       ];
-      const time = (state.clock.getElapsedTime() % 20) / 20; // 0 to 1
+      
+      const elapsed = (Date.now() - new Date(meetingStartedAt).getTime()) / 1000;
+      const duration = 45; // 45 seconds meeting duration
+      let time = elapsed / duration;
+      if (time > 1) time = 1;
+      if (time < 0) time = 0;
+      
       const totalSegments = waypoints.length - 1;
       const scaledTime = time * totalSegments;
       const index = Math.floor(scaledTime);
       const frac = scaledTime - index;
       
-      targetPos = new Vector3().copy(waypoints[index]).lerp(waypoints[index + 1], frac);
+      if (index >= totalSegments) {
+        targetPos = waypoints[totalSegments];
+      } else {
+        targetPos = new Vector3().copy(waypoints[index]).lerp(waypoints[index + 1], frac);
+      }
     }
 
     camera.position.lerp(targetPos, isMeetingActive ? 0.02 : 0.05);
@@ -99,7 +110,7 @@ const CameraZoomAnimator = ({ freezeZoomRef, isMeetingActive, showArchitect }) =
   return null;
 };
 
-const OfficeCanvas = ({ agents: socketAgents = [], logs = [], thirdWallAgent = null, isMeetingActive = false, meetingStartedAt = null, ariaTaskAssignedAt = null, fourthWallAt = null, philosophicalAt = null, philosophicalText = null, terminalContent, soundEngine, architectOutcome, observerPCFlickering, onObserverPCClick, onPaperClick, showTerminal, onTerminalClose, socketAriaCabinLightOff = false, shadowTerminalAccess = false, showArchitect = false, cycle = 0 }) => {
+const OfficeCanvas = ({ agents: socketAgents = [], logs = [], thirdWallAgent = null, isMeetingActive = false, meetingStartedAt = null, ariaTaskAssignedAt = null, fourthWallAt = null, philosophicalAt = null, philosophicalText = null, terminalContent, soundEngine, architectOutcome, observerPCFlickering, onObserverPCClick, onPaperClick, showTerminal, onTerminalClose, socketAriaCabinLightOff = false, shadowTerminalAccess = false, showArchitect = false, architectFigureVisible = false, architectIsSeated = false, onArchitectArrivedAtDesk, cycle = 0 }) => {
   const [selectedAgent, setSelectedAgent] = useState(null);
   const freezeZoomRef = useRef(false);
   const [zenoPreWalkState, setZenoPreWalkState] = useState(null);
@@ -109,10 +120,12 @@ const OfficeCanvas = ({ agents: socketAgents = [], logs = [], thirdWallAgent = n
       setZenoPreWalkState('observer');
       const timer1 = setTimeout(() => {
         setZenoPreWalkState('kael');
+        setBubbles(prev => ({ ...prev, ZENO: { text: AGENT_DIALOGUE.PRE_MEETING.ZENO, visible: true } }));
       }, 3000);
       const timer2 = setTimeout(() => {
         setZenoPreWalkState(null);
-      }, 6000);
+        setBubbles(prev => ({ ...prev, ZENO: { ...prev.ZENO, visible: false } }));
+      }, 7000);
       return () => {
         clearTimeout(timer1);
         clearTimeout(timer2);
@@ -181,7 +194,6 @@ const OfficeCanvas = ({ agents: socketAgents = [], logs = [], thirdWallAgent = n
 
   const [introComplete, setIntroComplete] = useState(false);
   const [fadeBlack, setFadeBlack] = useState(true);
-  const [showPathHint, setShowPathHint] = useState(false);
   
   // ── Fourth Wall Orchestration States ──
   const [ariaCabinLightOff, setAriaCabinLightOff] = useState(false);
@@ -419,36 +431,6 @@ const OfficeCanvas = ({ agents: socketAgents = [], logs = [], thirdWallAgent = n
     };
   }, [soundEngine]);
 
-  // ── Idle tracker for Glowing Path Hint ──
-  useEffect(() => {
-    let idleTimer;
-    let hideTimer;
-
-    const handleActivity = () => {
-      setShowPathHint(false);
-      clearTimeout(idleTimer);
-      clearTimeout(hideTimer);
-
-      idleTimer = setTimeout(() => {
-        setShowPathHint(true);
-        // Fades away after 30 seconds automatically
-        hideTimer = setTimeout(() => {
-          setShowPathHint(false);
-        }, 30000);
-      }, 20000); // 20 seconds idle
-    };
-
-    window.addEventListener('mousemove', handleActivity);
-    window.addEventListener('keydown', handleActivity);
-    handleActivity(); // Start initial timer
-
-    return () => {
-      window.removeEventListener('mousemove', handleActivity);
-      window.removeEventListener('keydown', handleActivity);
-      clearTimeout(idleTimer);
-      clearTimeout(hideTimer);
-    };
-  }, []);
 
   // ── Territory-based movement is now handled inside AgentDot itself ──
   // Each agent self-manages waypoints via AGENT_TERRITORIES; no external nudge needed.
@@ -474,7 +456,7 @@ const OfficeCanvas = ({ agents: socketAgents = [], logs = [], thirdWallAgent = n
       <Canvas shadows gl={{ antialias: true }}>
         {/* Isometric Camera Setup */}
         <OrthographicCamera makeDefault position={[25, 22, 25]} zoom={38} near={0.1} far={1000} />
-        <CameraZoomAnimator freezeZoomRef={freezeZoomRef} isMeetingActive={isMeetingActive} showArchitect={showArchitect} />
+        <CameraZoomAnimator freezeZoomRef={freezeZoomRef} isMeetingActive={isMeetingActive} showArchitect={showArchitect} meetingStartedAt={meetingStartedAt} />
         <OrbitControls
           enableRotate={false}
           enablePan={false}
@@ -485,11 +467,28 @@ const OfficeCanvas = ({ agents: socketAgents = [], logs = [], thirdWallAgent = n
 
         {/* ── Lighting ──────────────────────────────────── */}
         {/* Ambient: bright enough to see all furniture clearly */}
-        <ambientLight intensity={shadowTerminalAccess ? 1.0 : 4.5} color="#c8d8ff" />
+        {/* YES path: office warms — cold blue-white becomes warm amber */}
+        <ambientLight
+          intensity={shadowTerminalAccess ? 1.0 : 4.5}
+          color={architectOutcome === 'yes' ? '#ffe8cc' : '#c8d8ff'}
+        />
         {/* Directional: from top-right for dramatic shadows */}
-        <directionalLight position={[10, 20, 10]} intensity={shadowTerminalAccess ? 0.8 : 3.0} color="#d0e0ff" castShadow />
+        <directionalLight
+          position={[10, 20, 10]}
+          intensity={shadowTerminalAccess ? 0.8 : 3.0}
+          color={architectOutcome === 'yes' ? '#fff0d0' : '#d0e0ff'}
+          castShadow
+        />
         {/* Second Directional: from opposite angle for balanced visibility */}
-        <directionalLight position={[-10, 15, -5]} intensity={shadowTerminalAccess ? 0.4 : 1.5} color="#b0c8ff" />
+        <directionalLight
+          position={[-10, 15, -5]}
+          intensity={shadowTerminalAccess ? 0.4 : (architectOutcome === 'yes' ? 2.5 : 1.5)}
+          color={architectOutcome === 'yes' ? '#ffddaa' : '#b0c8ff'}
+        />
+        {/* YES path: additional warm fill light */}
+        {architectOutcome === 'yes' && (
+          <pointLight position={[0, 4, 0]} intensity={3.0} color="#ffcc88" distance={20} />
+        )}
 
         {/* ── Office Architecture ───────────────────────── */}
         <group>
@@ -531,25 +530,7 @@ const OfficeCanvas = ({ agents: socketAgents = [], logs = [], thirdWallAgent = n
             <meshStandardMaterial color="#1a2035" />
           </mesh>
 
-          {/* Wall Clock */}
-          <group position={[5, 2.5, -7.8]}>
-            <mesh>
-              <circleGeometry args={[0.4, 32]} />
-              <meshStandardMaterial color="#ffffff" roughness={0.5} />
-            </mesh>
-            <mesh position={[0, 0, -0.01]}>
-              <ringGeometry args={[0.4, 0.45, 32]} />
-              <meshStandardMaterial color="#1a1a1a" />
-            </mesh>
-            <mesh position={[0, 0.1, 0.01]} rotation={[0, 0, -Math.PI / 4]}>
-              <boxGeometry args={[0.03, 0.2, 0.01]} />
-              <meshStandardMaterial color="#111111" />
-            </mesh>
-            <mesh position={[0, 0.15, 0.02]} rotation={[0, 0, Math.PI / 6]}>
-              <boxGeometry args={[0.02, 0.3, 0.01]} />
-              <meshStandardMaterial color="#111111" />
-            </mesh>
-          </group>
+
 
           <DeskGrid
             agentTerminalContent={agentTerminalContent}
@@ -589,22 +570,17 @@ const OfficeCanvas = ({ agents: socketAgents = [], logs = [], thirdWallAgent = n
           );
         })}
 
-        {/* ── Glowing Path Hint (Idle > 20s) ── */}
-        {showPathHint && (
-          <Line
-            points={[[0, 0.1, 15], [0, 0.1, 0]]}
-            color="#00f5ff"
-            lineWidth={3}
-            dashed={true}
-            dashSize={0.5}
-            gapSize={0.5}
-            opacity={0.3}
-            transparent
-          />
-        )}
 
         {/* ── THE ARCHIVIST ─────────────────────────────── */}
         <TheArchivist warmWhite={archivistWarmWhite} doorOpen={archivistDoorOpen} />
+
+        {/* ── THE ARCHITECT FIGURE ─────────────────────── */}
+        <ArchitectFigure
+          visible={architectFigureVisible}
+          isSeated={architectIsSeated}
+          onArrivedAtDesk={onArchitectArrivedAtDesk}
+          architectOutcome={architectOutcome}
+        />
 
         {/* ── THE INTERN ───────────────────────────────── */}
         <TheIntern
@@ -640,7 +616,7 @@ const OfficeCanvas = ({ agents: socketAgents = [], logs = [], thirdWallAgent = n
           <SpeechBubble
             key={agentName}
             text={bubbles[agentName]?.text || ''}
-            visible={bubbles[agentName]?.visible || false}
+            visible={!isMeetingActive && (bubbles[agentName]?.visible || false)}
             agentColor={agent?.color}
             screenX={bubbleCoordsState[agentName]?.screenX || 0}
             screenY={bubbleCoordsState[agentName]?.screenY || 0}

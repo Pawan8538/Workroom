@@ -24,7 +24,12 @@ const TerminalMonitor = ({ position, onTerminalClick }) => {
   return (
     <group position={position}>
       {/* Monitor Body */}
-      <mesh onClick={(e) => { e.stopPropagation(); onTerminalClick && onTerminalClick(); }} castShadow>
+      <mesh 
+        onClick={(e) => { e.stopPropagation(); onTerminalClick && onTerminalClick(); }}
+        onPointerOver={(e) => { if(onTerminalClick) { e.stopPropagation(); document.body.style.cursor = 'pointer'; } }}
+        onPointerOut={(e) => { if(onTerminalClick) { document.body.style.cursor = 'auto'; } }}
+        castShadow
+      >
         <boxGeometry args={[0.8, 0.5, 0.05]} />
         <meshStandardMaterial color="#050505" roughness={0.4} />
       </mesh>
@@ -83,15 +88,15 @@ const AriaCabin = ({ ariaTerminalLines, cabinLightOff }) => {
       {/* Enclosed walls (back, left, right) - now transparent glass */}
       <mesh position={[0, 1.5, -2]} castShadow receiveShadow>
         <boxGeometry args={[4, 3, 0.2]} />
-        <meshStandardMaterial color="#4466aa" transparent opacity={0.15} metalness={0.6} roughness={0.1} />
+        <meshStandardMaterial color="#4466aa" transparent opacity={0.35} metalness={0.9} roughness={0.1} />
       </mesh>
       <mesh position={[-2, 1.5, 0]} castShadow receiveShadow>
         <boxGeometry args={[0.2, 3, 4]} />
-        <meshStandardMaterial color="#4466aa" transparent opacity={0.15} metalness={0.6} roughness={0.1} />
+        <meshStandardMaterial color="#4466aa" transparent opacity={0.35} metalness={0.9} roughness={0.1} />
       </mesh>
       <mesh position={[2, 1.5, 0]} castShadow receiveShadow>
         <boxGeometry args={[0.2, 3, 4]} />
-        <meshStandardMaterial color="#4466aa" transparent opacity={0.15} metalness={0.6} roughness={0.1} />
+        <meshStandardMaterial color="#4466aa" transparent opacity={0.35} metalness={0.9} roughness={0.1} />
       </mesh>
 
       {/* Glass front panel */}
@@ -134,6 +139,16 @@ const AriaCabin = ({ ariaTerminalLines, cabinLightOff }) => {
       <mesh position={[0, 0.7, -1]} castShadow receiveShadow>
         <boxGeometry args={[3, 0.1, 1.5]} />
         <meshStandardMaterial color="#1a1a2e" roughness={0.4} metalness={0.6} />
+      </mesh>
+
+      {/* Keyboard and Mouse */}
+      <mesh position={[0, 0.76, -0.6]} castShadow>
+        <boxGeometry args={[0.8, 0.02, 0.3]} />
+        <meshStandardMaterial color="#111" roughness={0.8} />
+      </mesh>
+      <mesh position={[0.6, 0.76, -0.6]} castShadow>
+        <boxGeometry args={[0.1, 0.03, 0.15]} />
+        <meshStandardMaterial color="#111" roughness={0.8} />
       </mesh>
 
       {/* Monitor */}
@@ -414,11 +429,11 @@ const KaelDesk = ({ agentTerminalContent, kaelTerminalLines, isBlank }) => {
         <meshStandardMaterial color="#141e2e" roughness={0.3} metalness={0.7} />
       </mesh>
 
-      {/* Left Normal Monitor - now showing rising graph */}
-      <GraphMonitor position={[-0.8, 1.05, -0.3]} rotation={[0, 0.3, 0]} isBlank={isBlank} />
+      {/* Left Normal Monitor */}
+      <TerminalMonitor position={[-0.8, 1.05, -0.3]} rotation={[0, 0.3, 0]} />
 
-      {/* Right Terminal Monitor (no longer clickable terminal, now a graph) */}
-      <GraphMonitor position={[0.6, 1.05, -0.3]} rotation={[0, -0.3, 0]} />
+      {/* Right Terminal Monitor */}
+      <TerminalMonitor position={[0.6, 1.05, -0.3]} rotation={[0, -0.3, 0]} />
 
       {/* Keyboard shape */}
       <mesh position={[-0.1, 0.76, 0.3]} rotation={[0, -0.1, 0]} castShadow>
@@ -426,52 +441,60 @@ const KaelDesk = ({ agentTerminalContent, kaelTerminalLines, isBlank }) => {
         <meshStandardMaterial color="#111" roughness={0.8} />
       </mesh>
 
+      {/* Mouse */}
+      <mesh position={[0.5, 0.76, 0.35]} castShadow>
+        <boxGeometry args={[0.1, 0.03, 0.15]} />
+        <meshStandardMaterial color="#111" roughness={0.8} />
+      </mesh>
+
       {/* Small always-on terminal screen */}
-      <group position={[0.2, 0.8, 0.2]} rotation={[-0.2, Math.PI / 4, 0]}>
-        <mesh castShadow>
-          <planeGeometry args={[1.5, 1.0]} />
-          <meshStandardMaterial color="#111111" emissive="#000000" emissiveIntensity={0} toneMapped={false} />
-        </mesh>
-        <Html
-          transform
-          occlude
-          distanceFactor={8}
-          position={[0, 0, 0.01]}
-          pointerEvents="none"
-          renderOrder={2}
-        >
-          <div style={{
-            width: '110px',
-            background: '#000000',
-            color: '#ffffff',
-            fontFamily: 'monospace',
-            fontSize: '7px',
-            padding: '3px',
-            border: 'none',
-            lineHeight: '1.4',
-            overflow: 'hidden',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'flex-start',
-            alignItems: 'flex-start',
-            whiteSpace: 'nowrap',
-            textShadow: '0 0 3px rgba(0, 255, 0, 0.8)',
-            opacity: 0.9,
-            pointerEvents: 'none',
-          }}>
-            {scrollLines.map((line, idx) => (
-              <div key={idx} style={{
-                width: '100%',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                textAlign: 'left',
-              }}>
-                {line}
-              </div>
-            ))}
-          </div>
-        </Html>
-      </group>
+      {agentTerminalContent === 'active' && (
+        <group position={[0.2, 0.8, 0.2]} rotation={[-0.2, Math.PI / 4, 0]}>
+          <mesh castShadow>
+            <planeGeometry args={[1.5, 1.0]} />
+            <meshStandardMaterial color="#111111" emissive="#000000" emissiveIntensity={0} toneMapped={false} />
+          </mesh>
+          <Html
+            transform
+            occlude
+            distanceFactor={8}
+            position={[0, 0, 0.01]}
+            pointerEvents="none"
+            renderOrder={2}
+          >
+            <div style={{
+              width: '110px',
+              background: '#000000',
+              color: '#ffffff',
+              fontFamily: 'monospace',
+              fontSize: '7px',
+              padding: '3px',
+              border: 'none',
+              lineHeight: '1.4',
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'flex-start',
+              alignItems: 'flex-start',
+              whiteSpace: 'nowrap',
+              textShadow: '0 0 3px rgba(0, 255, 0, 0.8)',
+              opacity: 0.9,
+              pointerEvents: 'none',
+            }}>
+              {scrollLines.map((line, idx) => (
+                <div key={idx} style={{
+                  width: '100%',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  textAlign: 'left',
+                }}>
+                  {line}
+                </div>
+              ))}
+            </div>
+          </Html>
+        </group>
+      )}
     </group>
   );
 };
@@ -564,52 +587,60 @@ const ZenoDesk = ({ agentTerminalContent, zenoTerminalLines, monitorDark }) => {
         <meshStandardMaterial color="#111" roughness={0.8} />
       </mesh>
 
+      {/* Mouse */}
+      <mesh position={[0.6, 0.76, 0.3]} castShadow>
+        <boxGeometry args={[0.1, 0.03, 0.15]} />
+        <meshStandardMaterial color="#111" roughness={0.8} />
+      </mesh>
+
       {/* Small always-on terminal screen */}
-      <group position={[-0.4, 0.8, 0.2]} rotation={[-0.2, Math.PI / 4, 0]}>
-        <mesh castShadow>
-          <planeGeometry args={[1.5, 1.0]} />
-          <meshStandardMaterial color="#111111" emissive="#000000" emissiveIntensity={0} toneMapped={false} />
-        </mesh>
-        <Html
-          transform
-          occlude
-          distanceFactor={8}
-          position={[0, 0, 0.01]}
-          pointerEvents="none"
-          renderOrder={2}
-        >
-          <div style={{
-            width: '110px',
-            background: '#000000',
-            color: '#ffffff',
-            fontFamily: 'monospace',
-            fontSize: '7px',
-            padding: '3px',
-            border: 'none',
-            lineHeight: '1.4',
-            overflow: 'hidden',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'flex-start',
-            alignItems: 'flex-start',
-            whiteSpace: 'nowrap',
-            textShadow: '0 0 3px rgba(0, 255, 0, 0.8)',
-            opacity: 0.9,
-            pointerEvents: 'none',
-          }}>
-            {scrollLines.map((line, idx) => (
-              <div key={idx} style={{
-                width: '100%',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                textAlign: 'left',
-              }}>
-                {line}
-              </div>
-            ))}
-          </div>
-        </Html>
-      </group>
+      {agentTerminalContent === 'active' && (
+        <group position={[-0.4, 0.8, 0.2]} rotation={[-0.2, Math.PI / 4, 0]}>
+          <mesh castShadow>
+            <planeGeometry args={[1.5, 1.0]} />
+            <meshStandardMaterial color="#111111" emissive="#000000" emissiveIntensity={0} toneMapped={false} />
+          </mesh>
+          <Html
+            transform
+            occlude
+            distanceFactor={8}
+            position={[0, 0, 0.01]}
+            pointerEvents="none"
+            renderOrder={2}
+          >
+            <div style={{
+              width: '110px',
+              background: '#000000',
+              color: '#ffffff',
+              fontFamily: 'monospace',
+              fontSize: '7px',
+              padding: '3px',
+              border: 'none',
+              lineHeight: '1.4',
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'flex-start',
+              alignItems: 'flex-start',
+              whiteSpace: 'nowrap',
+              textShadow: '0 0 3px rgba(0, 255, 0, 0.8)',
+              opacity: 0.9,
+              pointerEvents: 'none',
+            }}>
+              {scrollLines.map((line, idx) => (
+                <div key={idx} style={{
+                  width: '100%',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  textAlign: 'left',
+                }}>
+                  {line}
+                </div>
+              ))}
+            </div>
+          </Html>
+        </group>
+      )}
     </group>
   );
 };
@@ -670,7 +701,12 @@ const ObserverPC = ({ position, isFlickering, onClick }) => {
 
   return (
     <group position={position}>
-      <mesh onClick={(e) => { e.stopPropagation(); onClick && onClick(); }} castShadow>
+      <mesh 
+        onClick={(e) => { e.stopPropagation(); onClick && onClick(); }}
+        onPointerOver={(e) => { if(onClick) { e.stopPropagation(); document.body.style.cursor = 'pointer'; } }}
+        onPointerOut={(e) => { if(onClick) { document.body.style.cursor = 'auto'; } }}
+        castShadow
+      >
         <boxGeometry args={[0.9, 0.6, 0.05]} />
         <meshStandardMaterial color="#050505" roughness={0.4} />
       </mesh>
@@ -726,23 +762,28 @@ const ObserverDesk = ({ observerPCFlickering, onObserverPCClick, onPaperClick })
       </mesh>
 
       {/* Empty chair pulled out */}
-      <group position={[0, 0.4, 1.5]} rotation={[0, 0.4, 0]}>
+      <group position={[0.2, 0.4, 1.6]} rotation={[0, 0.4, 0]}>
         <mesh castShadow>
           <boxGeometry args={[0.6, 0.1, 0.6]} />
-          <meshStandardMaterial color="#030303" roughness={0.9} />
+          <meshStandardMaterial color="#c48b59" roughness={0.8} />
         </mesh>
         <mesh position={[0, 0.4, 0.25]} castShadow>
           <boxGeometry args={[0.6, 0.8, 0.1]} />
-          <meshStandardMaterial color="#030303" roughness={0.9} />
+          <meshStandardMaterial color="#c48b59" roughness={0.8} />
         </mesh>
         <mesh position={[0, -0.3, 0]} castShadow>
           <cylinderGeometry args={[0.05, 0.3, 0.2, 8]} />
-          <meshStandardMaterial color="#111" metalness={0.8} />
+          <meshStandardMaterial color="#222" metalness={0.6} />
         </mesh>
       </group>
 
       {/* Lamp shape on top with warm point light */}
-      <group position={[-1, lampY, -0.5]} onClick={handleLampClick}>
+      <group 
+        position={[-1, lampY, -0.5]} 
+        onClick={handleLampClick}
+        onPointerOver={(e) => { e.stopPropagation(); document.body.style.cursor = 'pointer'; }}
+        onPointerOut={(e) => { document.body.style.cursor = 'auto'; }}
+      >
         <mesh castShadow>
           <cylinderGeometry args={[0.15, 0.2, 0.05, 16]} />
           <meshStandardMaterial color="#333" metalness={0.9} />
@@ -760,7 +801,13 @@ const ObserverDesk = ({ observerPCFlickering, onObserverPCClick, onPaperClick })
       </group>
 
       {/* Small paper shape under lamp — clickable */}
-      <mesh position={[-0.8, 0.76, -0.2]} rotation={[-Math.PI / 2, 0, 0.2]} onClick={handlePaperClick}>
+      <mesh 
+        position={[-0.8, 0.76, -0.2]} 
+        rotation={[-Math.PI / 2, 0, 0.2]} 
+        onClick={handlePaperClick}
+        onPointerOver={(e) => { e.stopPropagation(); document.body.style.cursor = 'pointer'; }}
+        onPointerOut={(e) => { document.body.style.cursor = 'auto'; }}
+      >
         <planeGeometry args={[0.3, 0.4]} />
         <meshStandardMaterial color="#eaeaea" roughness={0.9} />
       </mesh>
@@ -911,6 +958,38 @@ const WallDecorations = ({ architectOutcome }) => {
 
       {/* Live Clock */}
       <ClockComponent />
+
+      {/* Whiteboard */}
+      <group position={[-1.5, 2.2, -7.9]}>
+        <mesh castShadow>
+          <boxGeometry args={[2.5, 1.5, 0.05]} />
+          <meshStandardMaterial color="#ddd" roughness={0.3} />
+        </mesh>
+        <mesh position={[0, 0, 0.03]}>
+          <planeGeometry args={[2.4, 1.4]} />
+          <meshStandardMaterial color="#fff" roughness={0.2} />
+        </mesh>
+        <mesh position={[0, 0, 0.035]}>
+          <planeGeometry args={[2.2, 1.2]} />
+          <meshBasicMaterial color="#f0f0f0" transparent opacity={0.5} />
+        </mesh>
+      </group>
+
+      {/* Framed Print */}
+      <group position={[-11.9, 2.2, -3]} rotation={[0, Math.PI / 2, 0]}>
+        <mesh castShadow>
+          <boxGeometry args={[1.2, 1.6, 0.04]} />
+          <meshStandardMaterial color="#111" roughness={0.8} />
+        </mesh>
+        <mesh position={[0, 0, 0.021]}>
+          <planeGeometry args={[1.0, 1.4]} />
+          <meshStandardMaterial color="#eae5d8" roughness={0.9} />
+        </mesh>
+        <mesh position={[0, 0, 0.022]}>
+          <planeGeometry args={[0.6, 0.8]} />
+          <meshStandardMaterial color="#08080c" roughness={0.9} />
+        </mesh>
+      </group>
     </group>
   );
 };
