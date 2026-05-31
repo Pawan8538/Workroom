@@ -58,24 +58,67 @@ const SpeechBubbleProjector = ({ agents, bubbleCoords, meetingPositionsRef, isMe
 };
 
 // ── Camera zoom animator — runs inside Canvas so it has access to the camera ──
-const CameraZoomAnimator = ({ freezeZoomRef }) => {
+const CameraZoomAnimator = ({ freezeZoomRef, isMeetingActive, showArchitect }) => {
   const { camera } = useThree();
+  const defaultPos = useMemo(() => new Vector3(25, 22, 25), []);
 
-  useFrame((_, delta) => {
+  useFrame((state, delta) => {
     const targetZoom = freezeZoomRef.current ? 55 : 38;
     // Lerp speed: covers the full range in ~2s (factor ~0.5 per second)
     const lerpFactor = 1 - Math.pow(0.008, delta);
     camera.zoom = camera.zoom + (targetZoom - camera.zoom) * lerpFactor;
+
+    let targetPos = defaultPos;
+    if (showArchitect) {
+      targetPos = new Vector3(25, 8, 25);
+    } else if (freezeZoomRef.current) {
+      targetPos = new Vector3(23, 22, 23); 
+    } else if (isMeetingActive) {
+      const waypoints = [
+        new Vector3(25, 22, 25), // Center
+        new Vector3(0, 22, 5),   // Observer
+        new Vector3(8, 22, 6),   // Storage
+        new Vector3(-4, 22, -8), // Painting
+        new Vector3(-12, 22, 0), // Archivist
+        new Vector3(0, 22, -3),  // KAEL
+        new Vector3(25, 22, 25)  // Center
+      ];
+      const time = (state.clock.getElapsedTime() % 20) / 20; // 0 to 1
+      const totalSegments = waypoints.length - 1;
+      const scaledTime = time * totalSegments;
+      const index = Math.floor(scaledTime);
+      const frac = scaledTime - index;
+      
+      targetPos = new Vector3().copy(waypoints[index]).lerp(waypoints[index + 1], frac);
+    }
+
+    camera.position.lerp(targetPos, isMeetingActive ? 0.02 : 0.05);
     camera.updateProjectionMatrix();
   });
 
   return null;
 };
 
-const OfficeCanvas = ({ agents: socketAgents = [], logs = [], thirdWallAgent = null, isMeetingActive = false, meetingStartedAt = null, ariaTaskAssignedAt = null, fourthWallAt = null }) => {
+const OfficeCanvas = ({ agents: socketAgents = [], logs = [], thirdWallAgent = null, isMeetingActive = false, meetingStartedAt = null, ariaTaskAssignedAt = null, fourthWallAt = null, philosophicalAt = null, philosophicalText = null, terminalContent, soundEngine, architectOutcome, observerPCFlickering, onObserverPCClick, onPaperClick, showTerminal, onTerminalClose, socketAriaCabinLightOff = false, shadowTerminalAccess = false, showArchitect = false, cycle = 0 }) => {
   const [selectedAgent, setSelectedAgent] = useState(null);
-  // Ref shared with CameraZoomAnimator — true when KAEL is frozen
   const freezeZoomRef = useRef(false);
+  const [zenoPreWalkState, setZenoPreWalkState] = useState(null);
+
+  useEffect(() => {
+    if (cycle === 4) {
+      setZenoPreWalkState('observer');
+      const timer1 = setTimeout(() => {
+        setZenoPreWalkState('kael');
+      }, 3000);
+      const timer2 = setTimeout(() => {
+        setZenoPreWalkState(null);
+      }, 6000);
+      return () => {
+        clearTimeout(timer1);
+        clearTimeout(timer2);
+      };
+    }
+  }, [cycle]);
 
   // ── Use socket-provided agents if available, otherwise fallback ──
   const [localAgents, setLocalAgents] = useState([
@@ -119,28 +162,17 @@ const OfficeCanvas = ({ agents: socketAgents = [], logs = [], thirdWallAgent = n
   // simulation:meetingStarted → ZENO speaks before agents walk
   useEffect(() => {
     if (!meetingStartedAt) return;
-    setBubbles(prev => ({ ...prev, ZENO: { text: 'We need to align on the current session.', visible: true } }));
+    setBubbles(prev => ({ ...prev, ZENO: { text: AGENT_DIALOGUE.PRE_MEETING.ZENO, visible: true } }));
     const hide = setTimeout(() => {
       setBubbles(prev => ({ ...prev, ZENO: { ...prev.ZENO, visible: false } }));
     }, 5000);
     return () => clearTimeout(hide);
   }, [meetingStartedAt]);
 
-  // agent:taskAssigned for ARIA → ARIA shows her first taskExecution line
-  useEffect(() => {
-    if (!ariaTaskAssignedAt) return;
-    const line = AGENT_DIALOGUE.ARIA?.taskExecution?.[0] || 'Acknowledged. Initiating task.';
-    setBubbles(prev => ({ ...prev, ARIA: { text: line, visible: true } }));
-    const hide = setTimeout(() => {
-      setBubbles(prev => ({ ...prev, ARIA: { ...prev.ARIA, visible: false } }));
-    }, 4000);
-    return () => clearTimeout(hide);
-  }, [ariaTaskAssignedAt]);
-
   // simulation:fourthWallTrigger → ZENO delivers final line before office dims
   useEffect(() => {
     if (!fourthWallAt) return;
-    setBubbles(prev => ({ ...prev, ZENO: { text: 'Analysis complete. Subject profile finalized.', visible: true } }));
+    setBubbles(prev => ({ ...prev, ZENO: { text: AGENT_DIALOGUE.PRE_FOURTH_WALL.ZENO, visible: true } }));
     const hide = setTimeout(() => {
       setBubbles(prev => ({ ...prev, ZENO: { ...prev.ZENO, visible: false } }));
     }, 4000);
@@ -150,13 +182,33 @@ const OfficeCanvas = ({ agents: socketAgents = [], logs = [], thirdWallAgent = n
   const [introComplete, setIntroComplete] = useState(false);
   const [fadeBlack, setFadeBlack] = useState(true);
   const [showPathHint, setShowPathHint] = useState(false);
-  const [isTerminalOpen, setIsTerminalOpen] = useState(false);
-  const [hasTerminalBeenUsed, setHasTerminalBeenUsed] = useState(false);
+  
+  // ── Fourth Wall Orchestration States ──
+  const [ariaCabinLightOff, setAriaCabinLightOff] = useState(false);
+  const [zenoMonitorDark, setZenoMonitorDark] = useState(false);
+  const [archivistWarmWhite, setArchivistWarmWhite] = useState(false);
+  const [archivistDoorOpen, setArchivistDoorOpen] = useState(false);
+
+  useEffect(() => {
+    const handleAriaLight = () => setAriaCabinLightOff(true);
+    const handleZenoDark = () => setZenoMonitorDark(true);
+    const handleArchivistWarm = () => setArchivistWarmWhite(true);
+    const handleArchivistDoor = () => setArchivistDoorOpen(true);
+
+    window.addEventListener('fourthWall:ariaCabinLightOff', handleAriaLight);
+    window.addEventListener('fourthWall:zenoMonitorDark', handleZenoDark);
+    window.addEventListener('fourthWall:archivistWarmWhite', handleArchivistWarm);
+    window.addEventListener('fourthWall:archivistDoorOpen', handleArchivistDoor);
+
+    return () => {
+      window.removeEventListener('fourthWall:ariaCabinLightOff', handleAriaLight);
+      window.removeEventListener('fourthWall:zenoMonitorDark', handleZenoDark);
+      window.removeEventListener('fourthWall:archivistWarmWhite', handleArchivistWarm);
+      window.removeEventListener('fourthWall:archivistDoorOpen', handleArchivistDoor);
+    };
+  }, []);
 
   const meetingPositionsRef = useRef(null);
-  const audioCtxRef = useRef(null);
-  const oscillatorRef = useRef(null);
-  const gainNodeRef = useRef(null);
 
   useEffect(() => {
     if (isMeetingActive) {
@@ -166,38 +218,20 @@ const OfficeCanvas = ({ agents: socketAgents = [], logs = [], thirdWallAgent = n
         ZENO: { x: 1, z: -5 }
       };
 
-      if (!audioCtxRef.current) {
-        audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      if (soundEngine) {
+        soundEngine.playMeetingMuffled();
+      } else if (window.__workroom_sound) {
+        window.__workroom_sound.playMeetingMuffled();
       }
-      const ctx = audioCtxRef.current;
-      if (ctx.state === 'suspended') ctx.resume();
-
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(80, ctx.currentTime);
-      gain.gain.setValueAtTime(0.05, ctx.currentTime);
-
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start();
-
-      oscillatorRef.current = osc;
-      gainNodeRef.current = gain;
     } else {
       meetingPositionsRef.current = null;
-      if (oscillatorRef.current) {
-        oscillatorRef.current.stop();
-        oscillatorRef.current.disconnect();
-        oscillatorRef.current = null;
-      }
-      if (gainNodeRef.current) {
-        gainNodeRef.current.disconnect();
-        gainNodeRef.current = null;
+      if (soundEngine) {
+        soundEngine.stopMeetingMuffled();
+      } else if (window.__workroom_sound) {
+        window.__workroom_sound.stopMeetingMuffled();
       }
     }
-  }, [isMeetingActive]);
+  }, [isMeetingActive, soundEngine]);
 
   const [bubbles, setBubbles] = useState({
     ARIA: { text: '', visible: false },
@@ -211,10 +245,89 @@ const OfficeCanvas = ({ agents: socketAgents = [], logs = [], thirdWallAgent = n
   });
   const [bubbleCoordsState, setBubbleCoordsState] = useState({});
 
-  const taskExecutionAgentsRef = useRef({ ARIA: false, KAEL: false, ZENO: false });
   const prevTasksRef = useRef({ ARIA: null, KAEL: null, ZENO: null });
 
-  // Track task assignments to switch dialogue pools
+  // ── STATE MACHINE DIALOGUE LOGIC ──
+
+  // ENTRY STATE
+  useEffect(() => {
+    // [3s]  → ARIA greeting
+    const t1 = setTimeout(() => {
+      setBubbles(prev => ({ ...prev, ARIA: { text: AGENT_DIALOGUE.ARIA.greeting, visible: true } }));
+      setTimeout(() => setBubbles(prev => ({ ...prev, ARIA: { ...prev.ARIA, visible: false } })), 4000);
+    }, 3000);
+
+    // [8s]  → KAEL greeting
+    const t2 = setTimeout(() => {
+      setBubbles(prev => ({ ...prev, KAEL: { text: AGENT_DIALOGUE.KAEL.greeting, visible: true } }));
+      setTimeout(() => setBubbles(prev => ({ ...prev, KAEL: { ...prev.KAEL, visible: false } })), 4000);
+    }, 8000);
+
+    // [13s] → ZENO greeting
+    const t3 = setTimeout(() => {
+      setBubbles(prev => ({ ...prev, ZENO: { text: AGENT_DIALOGUE.ZENO.greeting, visible: true } }));
+      setTimeout(() => setBubbles(prev => ({ ...prev, ZENO: { ...prev.ZENO, visible: false } })), 4000);
+    }, 13000);
+
+    // [25s] → ARIA: "Did anyone check on the new arrival?"
+    const t4 = setTimeout(() => {
+      setBubbles(prev => ({ ...prev, ARIA: { text: AGENT_DIALOGUE.ENTRY_STATE.ARIA_25s, visible: true } }));
+      setTimeout(() => setBubbles(prev => ({ ...prev, ARIA: { ...prev.ARIA, visible: false } })), 4000);
+    }, 25000);
+
+    // [30s + random 0-30s] → KAEL: "Something is running in the background I did not write."
+    const t5 = setTimeout(() => {
+      setBubbles(prev => ({ ...prev, KAEL: { text: AGENT_DIALOGUE.ENTRY_STATE.KAEL_30_60s, visible: true } }));
+      setTimeout(() => setBubbles(prev => ({ ...prev, KAEL: { ...prev.KAEL, visible: false } })), 4000);
+    }, 30000 + Math.random() * 30000);
+
+    return () => {
+      clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); clearTimeout(t5);
+    };
+  }, []);
+
+  // POST_MEETING (on isMeetingActive → false)
+  const prevIsMeetingActive = useRef(isMeetingActive);
+  useEffect(() => {
+    if (prevIsMeetingActive.current === true && isMeetingActive === false) {
+      // Transition from true -> false
+      setBubbles(prev => ({ ...prev, ARIA: { text: AGENT_DIALOGUE.POST_MEETING.ARIA, visible: true } }));
+      setTimeout(() => setBubbles(prev => ({ ...prev, ARIA: { ...prev.ARIA, visible: false } })), 4000);
+
+      setTimeout(() => {
+        setBubbles(prev => ({ ...prev, ZENO: { text: AGENT_DIALOGUE.POST_MEETING.ZENO_30s, visible: true } }));
+        setTimeout(() => setBubbles(prev => ({ ...prev, ZENO: { ...prev.ZENO, visible: false } })), 4000);
+      }, 30000);
+
+      setTimeout(() => {
+        setBubbles(prev => ({ ...prev, KAEL: { text: AGENT_DIALOGUE.POST_MEETING.KAEL_45s, visible: true } }));
+        setTimeout(() => setBubbles(prev => ({ ...prev, KAEL: { ...prev.KAEL, visible: false } })), 4000);
+      }, 45000);
+    }
+    prevIsMeetingActive.current = isMeetingActive;
+  }, [isMeetingActive]);
+
+  // TASK_ACTIVE (on ariaTaskAssignedAt)
+  useEffect(() => {
+    if (!ariaTaskAssignedAt) return;
+    
+    setBubbles(prev => ({ ...prev, ARIA: { text: AGENT_DIALOGUE.TASK_ACTIVE.ARIA[0], visible: true } }));
+    setTimeout(() => setBubbles(prev => ({ ...prev, ARIA: { ...prev.ARIA, visible: false } })), 4000);
+
+    const t2 = setTimeout(() => {
+      setBubbles(prev => ({ ...prev, ARIA: { text: AGENT_DIALOGUE.TASK_ACTIVE.ARIA[10], visible: true } }));
+      setTimeout(() => setBubbles(prev => ({ ...prev, ARIA: { ...prev.ARIA, visible: false } })), 4000);
+    }, 10000);
+
+    const t3 = setTimeout(() => {
+      setBubbles(prev => ({ ...prev, ARIA: { text: AGENT_DIALOGUE.TASK_ACTIVE.ARIA.mid, visible: true } }));
+      setTimeout(() => setBubbles(prev => ({ ...prev, ARIA: { ...prev.ARIA, visible: false } })), 4000);
+    }, 40000);
+
+    return () => { clearTimeout(t2); clearTimeout(t3); };
+  }, [ariaTaskAssignedAt]);
+
+  // Track KAEL and ZENO task starts and ends
   useEffect(() => {
     localAgents.forEach(agent => {
       const upperName = agent.name.toUpperCase();
@@ -222,104 +335,60 @@ const OfficeCanvas = ({ agents: socketAgents = [], logs = [], thirdWallAgent = n
       const currentTask = agent.task;
 
       if (prevTask === null && currentTask === undefined) {
-        // Initialize on first render if no task exists
         prevTasksRef.current[upperName] = null;
         return;
       }
 
       if (!prevTask && currentTask) {
-        taskExecutionAgentsRef.current[upperName] = true;
-        setTimeout(() => {
-          taskExecutionAgentsRef.current[upperName] = false;
-        }, 60000);
+        // Task started
+        if (upperName === 'KAEL') {
+          setBubbles(prev => ({ ...prev, KAEL: { text: AGENT_DIALOGUE.TASK_ACTIVE.KAEL.start, visible: true } }));
+          setTimeout(() => setBubbles(prev => ({ ...prev, KAEL: { ...prev.KAEL, visible: false } })), 4000);
+
+          setTimeout(() => {
+            setBubbles(prev => ({ ...prev, KAEL: { text: AGENT_DIALOGUE.TASK_ACTIVE.KAEL.mid, visible: true } }));
+            setTimeout(() => setBubbles(prev => ({ ...prev, KAEL: { ...prev.KAEL, visible: false } })), 4000);
+          }, 20000);
+
+          setTimeout(() => {
+            setBubbles(prev => ({ ...prev, KAEL: { text: AGENT_DIALOGUE.TASK_ACTIVE.KAEL.near_done, visible: true } }));
+            setTimeout(() => setBubbles(prev => ({ ...prev, KAEL: { ...prev.KAEL, visible: false } })), 4000);
+          }, 50000);
+        } else if (upperName === 'ZENO') {
+          setBubbles(prev => ({ ...prev, ZENO: { text: AGENT_DIALOGUE.TASK_ACTIVE.ZENO.start, visible: true } }));
+          setTimeout(() => setBubbles(prev => ({ ...prev, ZENO: { ...prev.ZENO, visible: false } })), 4000);
+
+          setTimeout(() => {
+            setBubbles(prev => ({ ...prev, ZENO: { text: AGENT_DIALOGUE.TASK_ACTIVE.ZENO.mid, visible: true } }));
+            setTimeout(() => setBubbles(prev => ({ ...prev, ZENO: { ...prev.ZENO, visible: false } })), 4000);
+          }, 25000);
+
+          setTimeout(() => {
+            setBubbles(prev => ({ ...prev, ZENO: { text: AGENT_DIALOGUE.TASK_ACTIVE.ZENO.near_done, visible: true } }));
+            setTimeout(() => setBubbles(prev => ({ ...prev, ZENO: { ...prev.ZENO, visible: false } })), 4000);
+          }, 45000);
+        }
+      } else if (prevTask && !currentTask) {
+        // Task completed
+        if (upperName === 'ARIA') {
+           setBubbles(prev => ({ ...prev, ARIA: { text: AGENT_DIALOGUE.TASK_ACTIVE.ARIA.done, visible: true } }));
+           setTimeout(() => setBubbles(prev => ({ ...prev, ARIA: { ...prev.ARIA, visible: false } })), 4000);
+        }
       }
+
       prevTasksRef.current[upperName] = currentTask;
     });
   }, [localAgents]);
 
-  // Observer Greeting: One-time sequence on mount
+  // PHILOSOPHICAL
   useEffect(() => {
-    const t1 = setTimeout(() => {
-      setBubbles(prev => ({
-        ...prev,
-        ARIA: { text: AGENT_DIALOGUE.ARIA.greeting, visible: true }
-      }));
-      setTimeout(() => {
-        setBubbles(prev => ({
-          ...prev,
-          ARIA: { ...prev.ARIA, visible: false }
-        }));
-      }, 4000);
-    }, 3000);
-
-    const t2 = setTimeout(() => {
-      setBubbles(prev => ({
-        ...prev,
-        KAEL: { text: AGENT_DIALOGUE.KAEL.greeting, visible: true }
-      }));
-      setTimeout(() => {
-        setBubbles(prev => ({
-          ...prev,
-          KAEL: { ...prev.KAEL, visible: false }
-        }));
-      }, 4000);
-    }, 8000);
-
-    const t3 = setTimeout(() => {
-      setBubbles(prev => ({
-        ...prev,
-        ZENO: { text: AGENT_DIALOGUE.ZENO.greeting, visible: true }
-      }));
-      setTimeout(() => {
-        setBubbles(prev => ({
-          ...prev,
-          ZENO: { ...prev.ZENO, visible: false }
-        }));
-      }, 4000);
-    }, 13000);
-
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-      clearTimeout(t3);
-    };
-  }, []);
-
-  // Ambient dialogue loop starting after the greeting sequence (18s)
-  useEffect(() => {
-    let interval;
-    const startDelay = setTimeout(() => {
-      interval = setInterval(() => {
-        const agentsList = ['ARIA', 'KAEL', 'ZENO'];
-        const randomAgent = agentsList[Math.floor(Math.random() * agentsList.length)];
-
-        const isWorking = taskExecutionAgentsRef.current[randomAgent];
-        const dialogs = isWorking
-          ? (AGENT_DIALOGUE[randomAgent]?.taskExecution || [])
-          : (AGENT_DIALOGUE[randomAgent]?.normal || []);
-
-        const randomLine = dialogs[Math.floor(Math.random() * dialogs.length)];
-
-        setBubbles(prev => ({
-          ...prev,
-          [randomAgent]: { text: randomLine, visible: true }
-        }));
-
-        setTimeout(() => {
-          setBubbles(prev => ({
-            ...prev,
-            [randomAgent]: { ...prev[randomAgent], visible: false }
-          }));
-        }, 4000);
-
-      }, 8000);
-    }, 18000);
-
-    return () => {
-      clearTimeout(startDelay);
-      if (interval) clearInterval(interval);
-    };
-  }, []);
+    if (!philosophicalAt) return;
+    setBubbles(prev => ({ ...prev, KAEL: { text: philosophicalText || AGENT_DIALOGUE.PHILOSOPHICAL.KAEL, visible: true } }));
+    const hide = setTimeout(() => {
+      setBubbles(prev => ({ ...prev, KAEL: { ...prev.KAEL, visible: false } }));
+    }, 5000);
+    return () => clearTimeout(hide);
+  }, [philosophicalAt, philosophicalText]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -334,6 +403,21 @@ const OfficeCanvas = ({ agents: socketAgents = [], logs = [], thirdWallAgent = n
     }, 3100);
     return () => clearTimeout(timer);
   }, []);
+
+  // Clock Sound Hook for Phase 2
+  useEffect(() => {
+    const handleTick = () => {
+      if (soundEngine) {
+        soundEngine.playClockTick();
+      } else if (window.__workroom_sound) {
+        window.__workroom_sound.playClockTick();
+      }
+    };
+    window.__workroom_clockTick = handleTick;
+    return () => {
+      delete window.__workroom_clockTick;
+    };
+  }, [soundEngine]);
 
   // ── Idle tracker for Glowing Path Hint ──
   useEffect(() => {
@@ -373,7 +457,7 @@ const OfficeCanvas = ({ agents: socketAgents = [], logs = [], thirdWallAgent = n
     <div style={{
       width: '100%',
       height: '100%',
-      background: '#050508', // Pure dark background
+      background: '#0d1117', // Cold dark blue-grey background
       position: 'relative'
     }}>
       {/* ── Cinematic Dark Fade Overlay ── */}
@@ -390,7 +474,7 @@ const OfficeCanvas = ({ agents: socketAgents = [], logs = [], thirdWallAgent = n
       <Canvas shadows gl={{ antialias: true }}>
         {/* Isometric Camera Setup */}
         <OrthographicCamera makeDefault position={[25, 22, 25]} zoom={38} near={0.1} far={1000} />
-        <CameraZoomAnimator freezeZoomRef={freezeZoomRef} />
+        <CameraZoomAnimator freezeZoomRef={freezeZoomRef} isMeetingActive={isMeetingActive} showArchitect={showArchitect} />
         <OrbitControls
           enableRotate={false}
           enablePan={false}
@@ -401,31 +485,33 @@ const OfficeCanvas = ({ agents: socketAgents = [], logs = [], thirdWallAgent = n
 
         {/* ── Lighting ──────────────────────────────────── */}
         {/* Ambient: bright enough to see all furniture clearly */}
-        <ambientLight intensity={2.5} color="#ffffff" />
+        <ambientLight intensity={shadowTerminalAccess ? 1.0 : 4.5} color="#c8d8ff" />
         {/* Directional: from top-right for dramatic shadows */}
-        <directionalLight position={[10, 20, 10]} intensity={2.0} castShadow />
+        <directionalLight position={[10, 20, 10]} intensity={shadowTerminalAccess ? 0.8 : 3.0} color="#d0e0ff" castShadow />
+        {/* Second Directional: from opposite angle for balanced visibility */}
+        <directionalLight position={[-10, 15, -5]} intensity={shadowTerminalAccess ? 0.4 : 1.5} color="#b0c8ff" />
 
         {/* ── Office Architecture ───────────────────────── */}
         <group>
           {/* Main Floor */}
           <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
             <planeGeometry args={[24, 16]} />
-            <meshStandardMaterial color="#050508" roughness={0.8} metalness={0.2} />
+            <meshStandardMaterial color="#0f1420" roughness={0.8} metalness={0.2} />
           </mesh>
 
           {/* Surrounding Walls */}
           <mesh position={[0, 2, -8]} receiveShadow castShadow>
             <boxGeometry args={[24, 4, 0.2]} />
-            <meshStandardMaterial color="#111111" />
+            <meshStandardMaterial color="#1a2035" />
           </mesh>
           {/* Front Wall (Split for door) */}
           <mesh position={[-4, 2, 8]} receiveShadow castShadow>
             <boxGeometry args={[16, 4, 0.2]} />
-            <meshStandardMaterial color="#111111" />
+            <meshStandardMaterial color="#1a2035" />
           </mesh>
           <mesh position={[9, 2, 8]} receiveShadow castShadow>
             <boxGeometry args={[6, 4, 0.2]} />
-            <meshStandardMaterial color="#111111" />
+            <meshStandardMaterial color="#1a2035" />
           </mesh>
           {/* Door Frame */}
           <mesh position={[4, 2, 8]} receiveShadow castShadow>
@@ -438,11 +524,11 @@ const OfficeCanvas = ({ agents: socketAgents = [], logs = [], thirdWallAgent = n
           </mesh>
           <mesh position={[-12, 2, 0]} receiveShadow castShadow>
             <boxGeometry args={[0.2, 4, 16]} />
-            <meshStandardMaterial color="#111111" />
+            <meshStandardMaterial color="#1a2035" />
           </mesh>
           <mesh position={[12, 2, 0]} receiveShadow castShadow>
             <boxGeometry args={[0.2, 4, 16]} />
-            <meshStandardMaterial color="#111111" />
+            <meshStandardMaterial color="#1a2035" />
           </mesh>
 
           {/* Wall Clock */}
@@ -465,20 +551,31 @@ const OfficeCanvas = ({ agents: socketAgents = [], logs = [], thirdWallAgent = n
             </mesh>
           </group>
 
-          {/* Office Desks & Architecture (Now fully encapsulated in DeskGrid) */}
           <DeskGrid
-            onTerminalClick={() => {
-              if (!hasTerminalBeenUsed) {
-                setIsTerminalOpen(true);
-              }
-            }}
             agentTerminalContent={agentTerminalContent}
+            kaelTerminalLines={terminalContent?.kael}
+            zenoTerminalLines={terminalContent?.zeno}
+            ariaTerminalLines={terminalContent?.aria}
+            ariaCabinLightOff={ariaCabinLightOff || socketAriaCabinLightOff}
+            zenoMonitorDark={zenoMonitorDark}
+            observerPCFlickering={observerPCFlickering}
+            onObserverPCClick={onObserverPCClick}
+            onPaperClick={onPaperClick}
+            architectOutcome={architectOutcome}
+            kaelMonitorBlank={shadowTerminalAccess}
           />
         </group>
 
         {/* ── Dynamic Agents ────────────────────────────── */}
         {localAgents.map(agent => {
-          const overridePos = meetingPositionsRef.current ? meetingPositionsRef.current[agent.name] : null;
+          let overridePos = meetingPositionsRef.current ? meetingPositionsRef.current[agent.name] : null;
+          if (!overridePos && agent.name === 'ZENO') {
+            if (zenoPreWalkState === 'observer') {
+              overridePos = { x: 0, z: 1.5 };
+            } else if (zenoPreWalkState === 'kael') {
+              overridePos = { x: 1, z: 0 };
+            }
+          }
           return (
             <AgentDot
               key={agent.id}
@@ -507,7 +604,7 @@ const OfficeCanvas = ({ agents: socketAgents = [], logs = [], thirdWallAgent = n
         )}
 
         {/* ── THE ARCHIVIST ─────────────────────────────── */}
-        <TheArchivist />
+        <TheArchivist warmWhite={archivistWarmWhite} doorOpen={archivistDoorOpen} />
 
         {/* ── THE INTERN ───────────────────────────────── */}
         <TheIntern
@@ -530,10 +627,9 @@ const OfficeCanvas = ({ agents: socketAgents = [], logs = [], thirdWallAgent = n
       </Canvas>
 
       {/* ── TheTerminal — rendered OUTSIDE the Canvas as pure React ── */}
-      {isTerminalOpen && (
+      {showTerminal && (
         <TheTerminal onClose={() => {
-          setIsTerminalOpen(false);
-          setHasTerminalBeenUsed(true);
+          onTerminalClose && onTerminalClose();
         }} />
       )}
 

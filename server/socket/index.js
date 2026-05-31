@@ -40,9 +40,31 @@ export const setupSocket = (io) => {
     // ── Wire up all bidirectional agent events ──
     handleAgentEvents(io, socket);
 
+    // Initialize active timers object for this connection
+    const activeTimers = {
+      shadow: null,
+      archivist1: null,
+      cabinLight: null,
+      cabinLightOn: null,
+      shadowTerminal: null,
+      cycle: null,
+      meeting: null
+    };
+    sessionTimers.set(socket.id, activeTimers);
+
+    // Timed log entry: [ARCHIVIST] Entry updated. at 47 seconds
+    activeTimers.archivist1 = setTimeout(() => {
+      socket.emit('agent:logEntry', {
+        agentId: 'ARCHIVIST',
+        message: 'Entry updated.',
+        type: 'archivist',
+        timestamp: new Date().toISOString(),
+      });
+    }, 47000);
+
     // ── Start the shadow agent timer for this session ──
-    // After 90 seconds, emit a single eerie log entry
-    const shadowTimer = setTimeout(() => {
+    // After 90 seconds, emit a single eerie log entry and a parallel [???] still active log
+    activeTimers.shadow = setTimeout(() => {
       // Pick a message based on a rotating index
       const msgIndex = Math.floor(Math.random() * SHADOW_MESSAGES.length);
 
@@ -54,10 +76,31 @@ export const setupSocket = (io) => {
         type: 'shadow',
       });
 
-      console.log(`[Socket] ◈ Shadow log emitted to ${socket.id}`);
-    }, 90_000); // 90 seconds
+      // Parallel [???] still active log
+      socket.emit('agent:logEntry', {
+        agentId: '???',
+        message: 'still active.',
+        type: 'shadow',
+        timestamp: new Date().toISOString(),
+      });
 
-    sessionTimers.set(socket.id, { shadow: shadowTimer });
+      console.log(`[Socket] ◈ Shadow log emitted to ${socket.id}`);
+    }, 90000); // 90 seconds
+
+    // Timed random event: ARIA Cabin Light 8-Second Off Event (2-4 minutes)
+    const cabinLightOffTime = 120000 + Math.random() * 120000;
+    activeTimers.cabinLight = setTimeout(() => {
+      socket.emit('simulation:ariaCabinLightOff', { timestamp: new Date().toISOString() });
+      activeTimers.cabinLightOn = setTimeout(() => {
+        socket.emit('simulation:ariaCabinLightOn', { timestamp: new Date().toISOString() });
+      }, 8000);
+    }, cabinLightOffTime);
+
+    // Timed random event: ??? KAEL Terminal Blank + Office Light Flicker (3-6 minutes)
+    const shadowTerminalTime = 180000 + Math.random() * 180000;
+    activeTimers.shadowTerminal = setTimeout(() => {
+      socket.emit('simulation:shadowTerminalAccess', { timestamp: new Date().toISOString() });
+    }, shadowTerminalTime);
 
     // ─────────────────────────────────────────────────────
     // THE THIRD WALL BREAK — "The Agent Speaks to the Developer"
@@ -82,11 +125,25 @@ export const setupSocket = (io) => {
     let thirdWallFired = false;
     let spontaneousMeetingFired = false; // Ensure the meeting only fires once per session
 
+    // Philosophical moment: cycle 3-7, random, once only
+    const philosophicalCycle = 3 + Math.floor(Math.random() * 5);
+    let philosophicalFired = false;
+
     const cycleTimer = setInterval(() => {
       currentCycle++;
 
       // ── Emit cycle count to the client for the header ──
       socket.emit('simulation:cycleUpdate', { cycle: currentCycle });
+
+      // ── Check for philosophical moment ──
+      if (currentCycle === philosophicalCycle && !philosophicalFired) {
+        philosophicalFired = true;
+        socket.emit('simulation:philosophicalMoment', {
+          agentId: 'kael',
+          text: 'Do you ever wonder if the office knows it is an office?',
+          timestamp: new Date().toISOString()
+        });
+      }
 
       // ── Check if it's time for the Third Wall Break ──
       if (currentCycle === triggerCycle && !thirdWallFired) {
@@ -119,6 +176,25 @@ export const setupSocket = (io) => {
             timestamp: new Date().toISOString(),
           });
         }, 4000);
+
+        // Phase 4: Archivist and ??? logs appear after third wall break (5s and 6s)
+        setTimeout(() => {
+          socket.emit('agent:logEntry', {
+            agentId: 'ARCHIVIST',
+            message: 'Pattern recognized. Continuing observation.',
+            type: 'archivist',
+            timestamp: new Date().toISOString(),
+          });
+        }, 5000);
+
+        setTimeout(() => {
+          socket.emit('agent:logEntry', {
+            agentId: '???',
+            message: 'monitoring synchronized.',
+            type: 'shadow',
+            timestamp: new Date().toISOString(),
+          });
+        }, 6000);
       }
 
       // ── Check if it’s time for the Spontaneous Meeting (cycle 5) ──
@@ -154,6 +230,10 @@ export const setupSocket = (io) => {
       const allTimers = sessionTimers.get(socket.id);
       if (allTimers) {
         if (allTimers.shadow) clearTimeout(allTimers.shadow);
+        if (allTimers.archivist1) clearTimeout(allTimers.archivist1);
+        if (allTimers.cabinLight) clearTimeout(allTimers.cabinLight);
+        if (allTimers.cabinLightOn) clearTimeout(allTimers.cabinLightOn);
+        if (allTimers.shadowTerminal) clearTimeout(allTimers.shadowTerminal);
         if (allTimers.cycle) clearInterval(allTimers.cycle);
         if (allTimers.meeting) clearTimeout(allTimers.meeting); // Clean up spontaneous meeting timer
         sessionTimers.delete(socket.id);

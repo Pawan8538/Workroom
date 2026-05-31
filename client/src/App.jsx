@@ -9,9 +9,12 @@ import TheObserver from './components/Hidden/TheObserver';
 import ChapterTwo from './components/Chapters/ChapterTwo';
 import { useSocket } from './hooks/useSocket';
 import GateScene from './components/UI/GateScene';
+import { useSoundEngine } from './hooks/useSoundEngine';
+import DeliverableScreen from './components/UI/DeliverableScreen';
+import Day47Modal from './components/UI/Day47Modal';
 
 function App() {
-  const { agents, logs, isFourthWallTriggered, isMeetingActive, isConnected, thirdWallAgent, cycle, meetingStartedAt, ariaTaskAssignedAt, fourthWallAt } = useSocket();
+  const { agents, logs, isFourthWallTriggered, isMeetingActive, isConnected, thirdWallAgent, cycle, meetingStartedAt, ariaTaskAssignedAt, fourthWallAt, philosophicalAt, philosophicalText, terminalContent, socketAriaCabinLightOff, shadowTerminalAccess } = useSocket();
   const [hash, setHash] = useState(window.location.hash);
   const [gatePassed, setGatePassed] = useState(false);
   const [showGoalInput, setShowGoalInput] = useState(false);
@@ -20,6 +23,36 @@ function App() {
   // ── Track the Architect outcome to control office brightness ──
   // 'none' = default, 'yes' = brightened, 'no' = normal dark
   const [architectOutcome, setArchitectOutcome] = useState('none');
+  
+  // Phase 8 states
+  const [observerPCFlickering, setObserverPCFlickering] = useState(false);
+  const [showDeliverable, setShowDeliverable] = useState(false);
+  const [deliverableFinished, setDeliverableFinished] = useState(false);
+  const [showDay47Modal, setShowDay47Modal] = useState(false);
+  const [showTerminal, setShowTerminal] = useState(false);
+
+  const soundEngine = useSoundEngine();
+
+  // Trigger foundation sounds when the gate is passed
+  useEffect(() => {
+    if (gatePassed) {
+      soundEngine.startFoundationSounds();
+    }
+  }, [gatePassed, soundEngine]);
+
+  // Handle fourth wall silence sequence / stop sounds when triggered
+  useEffect(() => {
+    // Silence happens ONLY after deliverable finishes (Phase 8 logic)
+    if (isFourthWallTriggered && deliverableFinished) {
+      soundEngine.stopAllSounds();
+    }
+  }, [isFourthWallTriggered, deliverableFinished, soundEngine]);
+  
+  useEffect(() => {
+    if (isFourthWallTriggered && !showDeliverable && !deliverableFinished) {
+      setObserverPCFlickering(true);
+    }
+  }, [isFourthWallTriggered, showDeliverable, deliverableFinished]);
 
   useEffect(() => {
     const onHashChange = () => setHash(window.location.hash);
@@ -62,6 +95,23 @@ function App() {
     setArchitectOutcome(outcome || 'no');
   };
 
+  const handleObserverPCClick = () => {
+    if (observerPCFlickering) {
+      setObserverPCFlickering(false);
+      setShowDeliverable(true);
+      // Optional: Play CRT sound here if added to SOUNDS.js later
+    }
+  };
+
+  const handleDeliverableClose = () => {
+    setShowDeliverable(false);
+    setDeliverableFinished(true);
+    // As per Phase 8G, terminal opens ONLY from Observer PC click -> after deliverable auto-closes
+    // Wait, FourthWall silence starts AFTER deliverable. TheTerminal opens when?
+    // Let's set showTerminal to true so OfficeCanvas can show it.
+    setShowTerminal(true);
+  };
+
   // If visitor navigated to Chapter 2 gate
   if (hash === '#chapter2') {
     return (
@@ -93,6 +143,20 @@ function App() {
         meetingStartedAt={meetingStartedAt}
         ariaTaskAssignedAt={ariaTaskAssignedAt}
         fourthWallAt={fourthWallAt}
+        philosophicalAt={philosophicalAt}
+        philosophicalText={philosophicalText}
+        terminalContent={terminalContent}
+        soundEngine={soundEngine}
+        architectOutcome={architectOutcome}
+        observerPCFlickering={observerPCFlickering}
+        onObserverPCClick={handleObserverPCClick}
+        onPaperClick={() => setShowDay47Modal(true)}
+        showTerminal={showTerminal}
+        onTerminalClose={() => setShowTerminal(false)}
+        socketAriaCabinLightOff={socketAriaCabinLightOff}
+        shadowTerminalAccess={shadowTerminalAccess}
+        showArchitect={showArchitect}
+        cycle={cycle}
       />
 
       {/* Right sidebar */}
@@ -101,14 +165,24 @@ function App() {
       {/* Goal input bar */}
       {showGoalInput && <GoalInput />}
 
-      {/* Fourth wall overlay — passes callback instead of navigating */}
-      {isFourthWallTriggered && !showArchitect && (
+      {/* Fourth wall overlay (Sequencer) — starts only after Deliverable finishes */}
+      {isFourthWallTriggered && deliverableFinished && !showArchitect && (
         <FourthWall onArchitectSummon={handleArchitectSummon} />
       )}
 
       {/* The Architect — fullscreen terminal overlay */}
       {showArchitect && (
         <ArchitectTerminal onClose={handleArchitectClose} />
+      )}
+
+      {/* Deliverable screen overlay */}
+      {showDeliverable && (
+        <DeliverableScreen terminalContent={terminalContent} onClose={handleDeliverableClose} />
+      )}
+
+      {/* Day 47 modal */}
+      {showDay47Modal && (
+        <Day47Modal onClose={() => setShowDay47Modal(false)} />
       )}
 
       {/* The Observer — renders nothing */}

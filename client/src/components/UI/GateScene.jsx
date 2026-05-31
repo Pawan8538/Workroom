@@ -42,15 +42,19 @@ const GateScene = ({ onComplete }) => {
       }} />
 
       {/* ── Door Frame ── */}
-      <div style={{
-        width: '200px',
-        height: '400px',
-        position: 'relative',
-        perspective: '1200px',
-        border: '4px solid #080808', // Dark frame
-        borderBottom: 'none',
-        boxShadow: 'inset 0 0 20px #000'
-      }}>
+      <div 
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        style={{
+          width: '200px',
+          height: '400px',
+          position: 'relative',
+          perspective: '1200px',
+          border: '4px solid #080808', // Dark frame
+          borderBottom: 'none',
+          boxShadow: 'inset 0 0 20px #000'
+        }}
+      >
         
         {/* Gap light under the door (faint before opening, vanishes when opening) */}
         {!isOpen && (
@@ -62,7 +66,8 @@ const GateScene = ({ onComplete }) => {
             height: '2px',
             background: '#00f5ff',
             boxShadow: '0 0 15px 2px #00f5ff',
-            opacity: 0.3
+            opacity: isHovered ? 0.7 : 0.3,
+            transition: 'opacity 0.5s ease'
           }} />
         )}
 
@@ -80,7 +85,7 @@ const GateScene = ({ onComplete }) => {
           transformOrigin: 'left',
           transition: isOpen 
             ? 'transform 1.5s cubic-bezier(0.4, 0, 0.2, 1)' 
-            : 'transform 4.0s cubic-bezier(0.25, 0.8, 0.25, 1)', // Slow creak when hovered
+            : 'transform 4.0s cubic-bezier(0.1, 0.9, 0.2, 1)', // Slow creak when hovered
           transform: isOpen 
             ? 'rotateY(-95deg)' 
             : (isHovered ? 'rotateY(-5deg)' : 'rotateY(0deg)'),
@@ -101,8 +106,6 @@ const GateScene = ({ onComplete }) => {
           {/* ── Metal Handle Wrapper to prevent hover flickering during door rotation ── */}
           <div
             onClick={handleOpen}
-            onMouseEnter={() => setIsHovered(true)}
-            onMouseLeave={() => setIsHovered(false)}
             style={{
               padding: '10px 20px', // Extra hitbox padding to keep mouse hover stable
               marginRight: '5px',

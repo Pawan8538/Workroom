@@ -9,7 +9,7 @@
 
 import express from 'express';
 import Visitor from '../models/Visitor.model.js';
-import ChapterRequest from '../models/ChapterRequest.model.js';
+import Chapter2Request from '../models/Chapter2Request.model.js';
 
 const router = express.Router();
 
@@ -67,7 +67,7 @@ router.get('/admin', adminAuth, async (req, res) => {
     const observerEntries = await Visitor.find({ type: 'observer' }).sort({ timestamp: -1 }).limit(50);
 
     // Chapter 2 requests
-    const chapterRequests = await ChapterRequest.find({}).sort({ submittedAt: -1 });
+    const chapterRequests = await Chapter2Request.find({}).sort({ requestedAt: -1 });
 
     // Generate HTML
     const html = `
@@ -244,10 +244,10 @@ router.get('/admin', adminAuth, async (req, res) => {
           <thead>
             <tr>
               <th>Applicant</th>
-              <th>Qualification Reason</th>
-              <th>Social Link</th>
+              <th>Role</th>
+              <th>Building</th>
               <th>Session ID</th>
-              <th>Submitted At</th>
+              <th>Requested At</th>
               <th>Status</th>
               <th>Actions</th>
             </tr>
@@ -256,14 +256,14 @@ router.get('/admin', adminAuth, async (req, res) => {
             ${chapterRequests.map(r => `
               <tr>
                 <td><strong>${r.name || 'Unknown'}</strong></td>
-                <td class="details-col" title="${r.reason || ''}">${r.reason || 'None provided'}</td>
-                <td><a href="${r.linkedinOrTwitter || '#'}" target="_blank" style="color: #00f5ff;">${r.linkedinOrTwitter || 'None'}</a></td>
+                <td>${r.role || 'None'}</td>
+                <td class="details-col" title="${r.whatBuilding || ''}">${r.whatBuilding || 'None provided'}</td>
                 <td style="font-family: monospace; color: #888;">${r.sessionId}</td>
-                <td>${new Date(r.submittedAt).toLocaleString()}</td>
+                <td>${new Date(r.requestedAt).toLocaleString()}</td>
                 <td><span class="status-badge status-${r.status}">${r.status}</span></td>
                 <td>
                   ${r.status === 'pending' ? `
-                    <button class="btn btn-approve" onclick="updateChapterStatus('${r._id}', 'approve')">Approve</button>
+                    <button class="btn btn-approve" onclick="updateChapterStatus('${r._id}', 'grant')">Grant</button>
                     <button class="btn btn-reject" onclick="updateChapterStatus('${r._id}', 'reject')">Reject</button>
                   ` : `<span style="color: #666;">No actions</span>`}
                 </td>
@@ -353,20 +353,20 @@ router.get('/admin', adminAuth, async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────
-// 4. ADMIN API ACTIONS (Approve / Reject)
+// 4. ADMIN API ACTIONS (Grant / Reject)
 // ─────────────────────────────────────────────────────────────
-router.post('/admin/api/chapter2/approve/:id', adminAuth, async (req, res) => {
+router.post('/admin/api/chapter2/grant/:id', adminAuth, async (req, res) => {
   try {
-    await ChapterRequest.findByIdAndUpdate(req.params.id, { status: 'approved' });
+    await Chapter2Request.findByIdAndUpdate(req.params.id, { status: 'granted' });
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to approve request' });
+    res.status(500).json({ error: 'Failed to grant request' });
   }
 });
 
 router.post('/admin/api/chapter2/reject/:id', adminAuth, async (req, res) => {
   try {
-    await ChapterRequest.findByIdAndUpdate(req.params.id, { status: 'rejected' });
+    await Chapter2Request.findByIdAndUpdate(req.params.id, { status: 'rejected' });
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Failed to reject request' });

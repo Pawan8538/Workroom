@@ -92,6 +92,43 @@ const ArchitectTerminal = ({ onClose }) => {
   // ── Contact card visibility (YES path only) ──
   const [showContact, setShowContact] = useState(false);
 
+  // ── Form State ──
+  const [formData, setFormData] = useState({ name: '', role: '', whatBuilding: '' });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formError, setFormError] = useState('');
+
+  const handleFormSubmit = async (e) => {
+    e.preventDefault();
+    if (!formData.name || !formData.role || !formData.whatBuilding) {
+      setFormError('Please fill out all fields.');
+      return;
+    }
+    setIsSubmitting(true);
+    setFormError('');
+
+    try {
+      const sessionId = window.__doorkeeper?.sessionId || 'sess_' + Math.random().toString(36).substr(2, 9);
+      const visitStats = { timeSpent: 0, agentsClicked: [], paperFound: false, workroomAnswer: '' };
+
+      const res = await fetch('http://localhost:5000/api/chapter2/request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...formData, sessionId, visitStats })
+      });
+
+      if (res.ok) {
+        window.location.hash = '#chapter2';
+        onClose('yes');
+      } else {
+        setFormError('Failed to submit. Please try again.');
+      }
+    } catch (err) {
+      setFormError('Network error.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   // ── Farewell complete flag (NO path) ──
   const [farewellDone, setFarewellDone] = useState(false);
 
@@ -102,6 +139,14 @@ const ArchitectTerminal = ({ onClose }) => {
   // ── Fade in on mount ──
   useEffect(() => {
     const t = setTimeout(() => setOverlayOpacity(1), 50);
+    if (window.__workroom_pushLog) {
+      window.__workroom_pushLog({
+        agentId: 'ARCHITECT',
+        message: 'All three. Always the same person.',
+        type: 'architect',
+        timestamp: new Date().toISOString()
+      });
+    }
     return () => clearTimeout(t);
   }, []);
 
@@ -336,10 +381,10 @@ const ArchitectTerminal = ({ onClose }) => {
             letterSpacing: '2px',
             margin: 0,
           }}>
-            [ARCHITECT_NAME]
+            Pawan Patidar
           </p>
           <a
-            href="[LINKEDIN_URL]"
+            href="https://linked.com/in/pawan8538"
             target="_blank"
             rel="noopener noreferrer"
             style={{
@@ -355,7 +400,7 @@ const ArchitectTerminal = ({ onClose }) => {
             onMouseEnter={(e) => { e.target.style.color = 'rgba(255, 255, 255, 0.9)'; }}
             onMouseLeave={(e) => { e.target.style.color = 'rgba(255, 255, 255, 0.5)'; }}
           >
-            [LINKEDIN_URL]
+            https://linked.com/in/pawan8538
           </a>
           <p style={{
             color: 'rgba(255, 255, 255, 0.5)',
@@ -364,8 +409,54 @@ const ArchitectTerminal = ({ onClose }) => {
             letterSpacing: '1px',
             margin: 0,
           }}>
-            [EMAIL]
+            pawanpatidar8538@gmail.com
           </p>
+
+          <form onSubmit={handleFormSubmit} style={{
+            marginTop: '40px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '15px',
+            width: '100%',
+            maxWidth: '400px',
+          }}>
+            <p style={{color: 'rgba(255,255,255,0.7)', fontFamily: 'monospace', fontSize: '0.9rem', marginBottom: '10px', textAlign: 'center'}}>
+              If you want to continue this conversation — leave your details.
+            </p>
+            <input 
+              type="text" 
+              placeholder="Name" 
+              value={formData.name}
+              onChange={e => setFormData({...formData, name: e.target.value})}
+              style={{
+                background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', padding: '10px', fontFamily: 'monospace', outline: 'none'
+              }}
+            />
+            <input 
+              type="text" 
+              placeholder="Role" 
+              value={formData.role}
+              onChange={e => setFormData({...formData, role: e.target.value})}
+              style={{
+                background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', padding: '10px', fontFamily: 'monospace', outline: 'none'
+              }}
+            />
+            <textarea 
+              placeholder="What are you building?" 
+              value={formData.whatBuilding}
+              onChange={e => setFormData({...formData, whatBuilding: e.target.value})}
+              rows={3}
+              style={{
+                background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', padding: '10px', fontFamily: 'monospace', outline: 'none', resize: 'none'
+              }}
+            />
+            {formError && <p style={{color: '#ffaa00', fontSize: '0.8rem', fontFamily: 'monospace'}}>{formError}</p>}
+            <button type="submit" disabled={isSubmitting} style={{
+              background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.4)', color: '#fff', padding: '10px', fontFamily: 'monospace', cursor: 'pointer', marginTop: '10px', letterSpacing: '2px'
+            }}>
+              {isSubmitting ? 'SUBMITTING...' : 'SUBMIT'}
+            </button>
+          </form>
         </div>
       )}
 

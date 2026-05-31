@@ -62,7 +62,7 @@ const AgentLog = ({ logs = [] }) => {
           prefix = '[ALERT]';
         } else if (log.type === 'shadow') {
           color = '#880000'; // dark red
-          prefix = '[ALERT]';
+          prefix = log.agentId ? `[${log.agentId}]` : '[ALERT]';
           msgColor = '#880000';
         } else if (log.type === 'trace') {
           color = '#222'; // extremely faint

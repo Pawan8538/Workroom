@@ -38,21 +38,12 @@ const GoalInput = () => {
         zIndex: 100,
         fontFamily: 'monospace'
       }}>
-        <div style={{
-          color: '#00f5ff',
-          fontSize: '0.9rem',
-          letterSpacing: '2px',
-          marginRight: '20px'
-        }}>
-          GOAL
-        </div>
-
         <form onSubmit={handleSubmit} style={{ flex: 1, display: 'flex' }}>
           <input
             type="text"
             value={goal}
             onChange={(e) => setGoal(e.target.value)}
-            placeholder="ENTER OBJECTIVE..."
+            placeholder="Tell them what to build..."
             spellCheck="false"
             style={{
               flex: 1,
@@ -80,39 +71,6 @@ const GoalInput = () => {
             &gt;
           </button>
         </form>
-      </div>
-
-      {/* Three tab buttons bottom left */}
-      <div style={{
-        position: 'absolute',
-        bottom: '30px',
-        left: '30px',
-        zIndex: 100,
-        display: 'flex',
-        gap: '20px',
-        fontFamily: 'monospace',
-        fontSize: '0.75rem',
-        color: '#555',
-        letterSpacing: '2px'
-      }}>
-        <div style={{ color: '#fff', borderBottom: '1px solid #fff', paddingBottom: '2px', cursor: 'pointer' }}>MAP</div>
-        <div style={{ cursor: 'pointer' }}>LOGS</div>
-        <div style={{ cursor: 'pointer' }}>SYSTEM</div>
-      </div>
-
-      {/* Bottom right watermark */}
-      <div style={{
-        position: 'absolute',
-        bottom: '20px',
-        right: '370px', // Avoid AgentPanel
-        zIndex: 100,
-        fontFamily: 'monospace',
-        fontSize: '0.65rem',
-        color: '#333',
-        letterSpacing: '2px',
-        pointerEvents: 'none'
-      }}>
-        // WORKROOM PROTOCOL INTERFACE
       </div>
     </>
   );

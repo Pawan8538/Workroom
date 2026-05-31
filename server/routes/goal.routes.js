@@ -2,6 +2,7 @@ import express from 'express';
 import Goal from '../models/Goal.model.js';
 import Task from '../models/Task.model.js';
 import { splitGoalIntoTasks } from '../services/taskSplitter.service.js';
+import { generateCodeContent, generateTestContent, generateArchitectureContent } from '../services/contentGenerator.service.js';
 
 const router = express.Router();
 
@@ -80,6 +81,31 @@ router.post('/', async (req, res) => {
         detail: task.title,
         timestamp: new Date().toISOString(),
       });
+      
+      // Async generate and emit terminal content
+      (async () => {
+        try {
+          let lines = [];
+          const agentId = task.assignedRole.toLowerCase();
+          if (agentId === 'kael') {
+            lines = await generateCodeContent(task.title, savedGoal.text);
+          } else if (agentId === 'zeno') {
+            lines = await generateTestContent(task.title, savedGoal.text);
+          } else if (agentId === 'aria') {
+            lines = await generateArchitectureContent(task.title, savedGoal.text);
+          }
+          
+          if (lines && lines.length > 0) {
+            io.emit('agent:terminalContent', {
+              agentId,
+              lines,
+              taskId: task.taskId
+            });
+          }
+        } catch (err) {
+          console.error(`[GoalRoute] Failed to generate terminal content for task ${task.taskId}:`, err.message);
+        }
+      })();
     });
 
     // Simulate task completion after estimatedCycles * 6 seconds

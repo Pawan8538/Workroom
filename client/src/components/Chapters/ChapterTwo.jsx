@@ -1,69 +1,64 @@
-// ─────────────────────────────────────────────────────────────
-// client/src/components/Chapters/ChapterTwo.jsx
-// Chapter 2 Access Gate & Waitlist Polling
-// ─────────────────────────────────────────────────────────────
-// Displays live waitlist count from GET /api/chapter2/waitlist-count,
-// polling every 30 seconds.
-// Allows visitor to submit access request via POST /api/chapter2/request.
-// Silently logs the request to the Doorkeeper tracking system.
-// ─────────────────────────────────────────────────────────────
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 const ChapterTwo = () => {
-  const [waitlistCount, setWaitlistCount] = useState(0);
-  const [requested, setRequested] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState('');
+  const [messages, setMessages] = useState([
+    { role: 'assistant', content: 'You found the door. I am the Architect.' }
+  ]);
+  const [input, setInput] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
+  const scrollRef = useRef(null);
 
-  // ── Poll waitlist count every 30 seconds ──
   useEffect(() => {
-    const fetchCount = async () => {
-      try {
-        const res = await fetch('http://localhost:5000/api/chapter2/waitlist-count');
-        if (res.ok) {
-          const data = await res.json();
-          setWaitlistCount(data.count || 0);
-        }
-      } catch (err) {
-        // Silent fail — polling must never disrupt the UI
-      }
-    };
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages]);
 
-    fetchCount(); // Initial fetch
-    const interval = setInterval(fetchCount, 30000); // Every 30s
-    return () => clearInterval(interval);
-  }, []);
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!input.trim() || isTyping) return;
 
-  // ── Handle Request Access ──
-  const handleRequestAccess = async () => {
-    if (loading || requested) return;
-    setLoading(true);
+    const newMessages = [...messages, { role: 'user', content: input.trim() }];
+    setMessages(newMessages);
+    setInput('');
+    setIsTyping(true);
 
     try {
-      // Retrieve active session ID from Doorkeeper beacon or fallback
-      const sessionId = window.__doorkeeper?.sessionId || 'sess_' + Math.random().toString(36).substr(2, 9);
-
-      const res = await fetch('http://localhost:5000/api/chapter2/request', {
+      const res = await fetch('http://localhost:5000/api/chapter2/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId })
+        body: JSON.stringify({ messages: newMessages.map(m => ({ role: m.role, content: m.content })) })
       });
 
-      if (res.ok) {
-        setRequested(true);
-        setMessage('Your request has been logged. The Doorkeeper will decide.');
-        // Log access request to Doorkeeper
-        window.__doorkeeper?.logChapter2Request();
-        // Optimistically increment local waitlist count
-        setWaitlistCount(prev => prev + 1);
-      } else {
-        setMessage('Failed to submit request. The gate remains locked.');
+      if (!res.body) throw new Error('No readable stream');
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+
+      setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        const chunkStr = decoder.decode(value);
+        const lines = chunkStr.split('\n');
+        for (const line of lines) {
+          if (line.startsWith('data: ') && line !== 'data: [DONE]') {
+            try {
+              const data = JSON.parse(line.substring(6));
+              setMessages(prev => {
+                const updated = [...prev];
+                updated[updated.length - 1].content += data.text;
+                return updated;
+              });
+            } catch(e) {}
+          }
+        }
       }
-    } catch (err) {
-      setMessage('Network error. The simulation is unresponsive.');
+    } catch(err) {
+      console.error(err);
+      setMessages(prev => [...prev, { role: 'assistant', content: '[Connection lost. Cannot reach the Architect.]' }]);
     } finally {
-      setLoading(false);
+      setIsTyping(false);
     }
   };
 
@@ -73,134 +68,83 @@ const ChapterTwo = () => {
       height: '100vh',
       display: 'flex',
       flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: '#050508',
-      color: '#f0f0f5',
-      fontFamily: "'Inter', sans-serif",
+      background: '#1a1208',
+      color: '#f5f0e8',
+      fontFamily: "'Courier New', Courier, monospace",
       position: 'absolute',
-      top: 0,
-      left: 0,
-      zIndex: 300,
-      boxSizing: 'border-box',
-      padding: '20px',
-      textAlign: 'center',
-      userSelect: 'none'
+      top: 0, left: 0, zIndex: 300,
+      boxSizing: 'border-box'
     }}>
-      {/* Top Accent Line */}
-      <div style={{
-        width: '60px',
-        height: '2px',
-        background: '#00f5ff',
-        marginBottom: '30px',
-        boxShadow: '0 0 15px #00f5ff'
-      }} />
-
-      <h1 style={{
-        fontSize: '2.2rem',
-        fontWeight: 300,
-        letterSpacing: '4px',
-        margin: '0 0 15px 0',
-        color: '#ffffff'
-      }}>
-        CHAPTER II // THE GATE
-      </h1>
-
-      <p style={{
-        color: '#8888a0',
-        fontSize: '1rem',
-        maxWidth: '500px',
-        lineHeight: '1.6',
-        margin: '0 0 40px 0',
-        fontWeight: 300
-      }}>
-        The simulation has concluded its initial phase. Access to the deeper architectural layers is currently restricted.
-      </p>
-
-      {/* Live Waitlist Display */}
-      <div style={{
-        background: 'rgba(255, 255, 255, 0.02)',
-        border: '1px solid rgba(255, 255, 255, 0.08)',
-        padding: '15px 30px',
-        borderRadius: '6px',
-        marginBottom: '40px',
-        backdropFilter: 'blur(8px)',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '15px'
-      }}>
-        <div style={{
-          width: '8px',
-          height: '8px',
-          borderRadius: '50%',
-          background: '#00f5ff',
-          boxShadow: '0 0 10px #00f5ff',
-          animation: 'pulse 2s infinite'
-        }} />
-        <span style={{ fontSize: '0.9rem', color: '#aaa', letterSpacing: '1px', textTransform: 'uppercase' }}>
-          Live Status: <strong style={{ color: '#00f5ff', fontFamily: 'monospace', fontSize: '1.1rem' }}>{waitlistCount}</strong> people are waiting
-        </span>
-      </div>
-
-      {/* Access Request Button */}
-      <button
-        onClick={handleRequestAccess}
-        disabled={loading || requested}
+      <div 
+        ref={scrollRef}
         style={{
-          padding: '14px 40px',
-          background: requested ? 'rgba(0, 255, 136, 0.1)' : 'transparent',
-          border: `1px solid ${requested ? '#00ff88' : 'rgba(0, 245, 255, 0.3)'}`,
-          color: requested ? '#00ff88' : '#00f5ff',
-          fontSize: '0.85rem',
-          fontFamily: 'monospace',
-          letterSpacing: '3px',
-          cursor: (loading || requested) ? 'default' : 'pointer',
-          borderRadius: '4px',
-          transition: 'all 0.3s ease',
-          boxShadow: requested ? '0 0 20px rgba(0, 255, 136, 0.2)' : 'none'
-        }}
-        onMouseEnter={(e) => {
-          if (!loading && !requested) {
-            e.target.style.borderColor = '#00f5ff';
-            e.target.style.background = 'rgba(0, 245, 255, 0.05)';
-            e.target.style.boxShadow = '0 0 15px rgba(0, 245, 255, 0.2)';
-          }
-        }}
-        onMouseLeave={(e) => {
-          if (!loading && !requested) {
-            e.target.style.borderColor = 'rgba(0, 245, 255, 0.3)';
-            e.target.style.background = 'transparent';
-            e.target.style.boxShadow = 'none';
-          }
+          flex: 1,
+          overflowY: 'auto',
+          padding: '40px 20%',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '20px'
         }}
       >
-        {loading ? 'TRANSMITTING...' : (requested ? 'REQUEST LOGGED ✓' : 'REQUEST ACCESS')}
-      </button>
+        {messages.map((m, i) => (
+          <div key={i} style={{
+            alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start',
+            maxWidth: '60%',
+            opacity: 0.9,
+            lineHeight: 1.5,
+            fontSize: '1rem',
+          }}>
+            {m.role === 'user' ? (
+              <span style={{ color: 'rgba(245,240,232,0.5)' }}>&gt; </span>
+            ) : null}
+            {m.content}
+          </div>
+        ))}
+        {isTyping && (
+          <div style={{ alignSelf: 'flex-start', opacity: 0.5 }}>
+            <span style={{ animation: 'blink 1s infinite' }}>▊</span>
+          </div>
+        )}
+      </div>
 
-      {/* Feedback Message */}
-      {message && (
-        <p style={{
-          marginTop: '25px',
-          fontSize: '0.85rem',
-          color: requested ? '#00ff88' : '#ffaa00',
-          fontFamily: 'monospace',
-          letterSpacing: '1px',
-          animation: 'fadeIn 0.5s ease'
-        }}>
-          {message}
-        </p>
-      )}
-
+      <div style={{ padding: '20px 20%', borderTop: '1px solid rgba(245,240,232,0.1)' }}>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', gap: '10px' }}>
+          <input 
+            type="text" 
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            disabled={isTyping}
+            placeholder="Type your response..."
+            style={{
+              flex: 1,
+              background: 'transparent',
+              border: '1px solid rgba(245,240,232,0.2)',
+              color: '#f5f0e8',
+              padding: '15px',
+              fontFamily: 'inherit',
+              fontSize: '1rem',
+              outline: 'none'
+            }}
+          />
+          <button 
+            type="submit" 
+            disabled={isTyping || !input.trim()}
+            style={{
+              background: 'rgba(245,240,232,0.1)',
+              border: '1px solid rgba(245,240,232,0.3)',
+              color: '#f5f0e8',
+              padding: '0 30px',
+              cursor: isTyping || !input.trim() ? 'default' : 'pointer',
+              fontFamily: 'inherit',
+              transition: 'background 0.2s'
+            }}
+          >
+            SEND
+          </button>
+        </form>
+      </div>
       <style>{`
-        @keyframes pulse {
-          0% { opacity: 0.4; transform: scale(0.95); }
-          50% { opacity: 1; transform: scale(1.05); }
-          100% { opacity: 0.4; transform: scale(0.95); }
-        }
-        @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(10px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
       `}</style>
     </div>
   );

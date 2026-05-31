@@ -40,21 +40,7 @@ const AgentDot = ({ name, role, color, symbol, x, y, status, task, isSelected, o
     return [{ x: clampedX, z: clampedZ }];
   }, [name, clampedX, clampedZ]);
 
-  const [currentWaypoint, setCurrentWaypoint] = useState(() => waypoints[0] || { x: clampedX, z: clampedZ });
-
-  // Periodically pick a random waypoint from territory list every 5 seconds
-  useEffect(() => {
-    if (status === 'meeting') return;
-
-    const timerId = setInterval(() => {
-      if (waypoints.length > 0) {
-        const nextWp = waypoints[Math.floor(Math.random() * waypoints.length)];
-        setCurrentWaypoint(nextWp);
-      }
-    }, 5000);
-
-    return () => clearInterval(timerId);
-  }, [waypoints, status]);
+  const currentWaypoint = waypoints[0] || { x: clampedX, z: clampedZ };
 
   // Target position uses props if in a meeting, otherwise the local territory waypoint
   const targetX = useMemo(() => {
@@ -72,17 +58,6 @@ const AgentDot = ({ name, role, color, symbol, x, y, status, task, isSelected, o
   const targetPos = useMemo(() => new THREE.Vector3(targetX, 0.5, targetZ), [targetX, targetZ]);
   const currentPos = useRef(new THREE.Vector3(clampedX, 0.5, clampedZ));
   
-  // ── Dotted trail history ──
-  const [trail, setTrail] = useState([new THREE.Vector3(clampedX, 0.5, clampedZ)]);
-
-  useEffect(() => {
-    setTrail(prev => {
-      const newTrail = [...prev, targetPos];
-      if (newTrail.length > 5) newTrail.shift();
-      return newTrail;
-    });
-  }, [clampedX, clampedZ, targetPos]);
-
   // ── Access the camera for "face the screen" behavior ──
   const { camera } = useThree();
 
@@ -126,20 +101,6 @@ const AgentDot = ({ name, role, color, symbol, x, y, status, task, isSelected, o
 
   return (
     <group>
-      {/* ── Dotted Trail ── */}
-      {trail.length > 1 && (
-        <Line 
-          points={trail.map(p => [p.x, 0.05, p.z])} 
-          color={color} 
-          lineWidth={2}
-          dashed={true}
-          dashSize={0.2}
-          gapSize={0.2}
-          opacity={0.4}
-          transparent
-        />
-      )}
-
       {/* ── The Agent Mesh ── */}
       <group ref={meshRef} onClick={onClick}>
         {/* Head */}

@@ -33,6 +33,11 @@ export const useSocket = () => {
   const [meetingStartedAt, setMeetingStartedAt] = useState(null);
   const [ariaTaskAssignedAt, setAriaTaskAssignedAt] = useState(null);
   const [fourthWallAt, setFourthWallAt] = useState(null);
+  const [philosophicalAt, setPhilosophicalAt] = useState(null);
+  const [philosophicalText, setPhilosophicalText] = useState("");
+  const [terminalContent, setTerminalContent] = useState({ kael: [], zeno: [], aria: [] });
+  const [socketAriaCabinLightOff, setSocketAriaCabinLightOff] = useState(false);
+  const [shadowTerminalAccess, setShadowTerminalAccess] = useState(false);
 
   // ── Ref to persist the socket across re-renders ──
   const socketRef = useRef(null);
@@ -260,6 +265,49 @@ export const useSocket = () => {
     });
 
     // ─────────────────────────────────────────────────────
+    // EVENT: simulation:philosophicalMoment
+    // ─────────────────────────────────────────────────────
+    socket.on('simulation:philosophicalMoment', (data) => {
+      console.log('[Socket] ◈ Philosophical Moment:', data.text);
+      setPhilosophicalText(data.text);
+      setPhilosophicalAt(Date.now());
+    });
+
+    // ─────────────────────────────────────────────────────
+    // EVENT: agent:terminalContent
+    // Real LLM output for agent terminals
+    // ─────────────────────────────────────────────────────
+    socket.on('agent:terminalContent', (data) => {
+      console.log('[Socket] ◈ Terminal Content received for', data.agentId);
+      const { agentId, lines } = data;
+      setTerminalContent(prev => ({
+        ...prev,
+        [agentId]: lines
+      }));
+    });
+
+    // ─────────────────────────────────────────────────────
+    // EVENT: cabin light and shadow terminal events
+    // ─────────────────────────────────────────────────────
+    socket.on('simulation:ariaCabinLightOff', () => {
+      console.log('[Socket] ◈ ARIA cabin light OFF event');
+      setSocketAriaCabinLightOff(true);
+    });
+
+    socket.on('simulation:ariaCabinLightOn', () => {
+      console.log('[Socket] ◈ ARIA cabin light ON event');
+      setSocketAriaCabinLightOff(false);
+    });
+
+    socket.on('simulation:shadowTerminalAccess', () => {
+      console.log('[Socket] ◈ Shadow terminal access triggered (3s blanking + flicker)');
+      setShadowTerminalAccess(true);
+      setTimeout(() => {
+        setShadowTerminalAccess(false);
+      }, 3000);
+    });
+
+    // ─────────────────────────────────────────────────────
     // EVENT: agent:shadowLog
     // The hidden "???" agent speaks. This entry appears
     // ONLY in the log feed — never in the agent panel.
@@ -322,6 +370,11 @@ export const useSocket = () => {
     meetingStartedAt,
     ariaTaskAssignedAt,
     fourthWallAt,
+    philosophicalAt,
+    philosophicalText,
+    terminalContent,
+    socketAriaCabinLightOff,
+    shadowTerminalAccess,
     socket: socketRef.current,
   };
 };
