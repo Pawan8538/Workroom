@@ -11,9 +11,8 @@ export const NARRATION = [
   { text: "> THE ONES WHO DO —", pause: 2000, type: "line" },
   { text: "> THEY CAME HERE FOR SOMETHING.", pause: 4000, type: "line" },
   { text: "> YOU NOTICED THINGS.", pause: 3000, type: "line" },
-  { text: "> THEY HAVE BEEN CALLING YOU OBSERVER\n  SINCE YOU ARRIVED.", pause: 3000, type: "line" },
+  { text: "> THEY HAVE BEEN CALLING YOU OBSERVER SINCE YOU ARRIVED.", pause: 3000, type: "line" },
   { text: "> THEY DISCUSSED IT BEFORE YOU KNEW.", pause: 4000, type: "line" },
-  { text: "> YOU CAME HERE FOR SOMETHING.", pause: 0, type: "line" },
   { text: "", pause: 0, type: "input" }
 ];
 
@@ -33,7 +32,7 @@ export const NARRATION_CONTINUATION = [
   { text: "> WAS PLACED FOR YOU.", pause: 4000, type: "line" },
   { text: "> NOT BY THE AGENTS.", pause: 3000, type: "line" },
   { text: "> BY SOMEONE THEY WORK FOR.", pause: 4000, type: "line" },
-  { text: "> SOMEONE WHO HAS BEEN HERE\n  SINCE BEFORE YOU ARRIVED.", pause: 3000, type: "line" },
+  { text: "> SOMEONE WHO HAS BEEN HERE SINCE BEFORE YOU ARRIVED.", pause: 3000, type: "line" },
   { text: "> SOMEONE WHO NEEDED TO KNOW", pause: 2000, type: "line" },
   { text: "> IF YOU WERE THE RIGHT PERSON.", pause: 5000, type: "line" },
   { text: "> THE OFFICE WAS NOT BUILT FOR THE AGENTS.", pause: 2000, type: "line" },
@@ -42,7 +41,7 @@ export const NARRATION_CONTINUATION = [
   { text: "> SOMEONE WHO LOOKS CAREFULLY.", pause: 2000, type: "line" },
   { text: "> SOMEONE WHO STAYS.", pause: 5000, type: "line" },
   { text: "> BEFORE WE CONTINUE —", pause: 2000, type: "line" },
-  { text: "> WHAT DO YOU THINK WORKROOM IS?", pause: 0, type: "line" },
+  { text: "> WHAT DO YOU THINK WORKROOM IS?", pause: 2000, type: "line" },
   { text: "", pause: 0, type: "input_final" },
   { text: "> NOTED.", pause: 3000, type: "line" },
   { text: "> THERE IS MORE HERE THAN YOU HAVE SEEN.", pause: 2000, type: "line" },

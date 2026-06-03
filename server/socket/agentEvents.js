@@ -17,7 +17,7 @@
 const DESK_POSITIONS = {
   aria: { x: -8, y: -4 },
   kael: { x: 0, y: 0 },
-  zeno: { x: 8, y: 4 },
+  zeno: { x: 6, y: -4 },
 };
 
 // ── Meeting room position (top center of the office canvas) ──

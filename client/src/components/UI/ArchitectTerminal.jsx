@@ -1,3 +1,5 @@
+export default function ArchitectTerminal() { return null; }
+
 // ─────────────────────────────────────────────────────────────
 // client/src/components/UI/ArchitectTerminal.jsx
 // THE ARCHITECT — Final narrative sequence
@@ -246,7 +248,7 @@ const ArchitectTerminal = ({ onClose }) => {
       inset: 0,
       width: '100vw',
       height: '100vh',
-      background: '#000000',
+      background: 'rgba(0, 0, 0, 0.85)',
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',

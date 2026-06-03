@@ -1,0 +1,20 @@
+export const ARCHITECT_LINES = [
+  "I owe you an explanation.",
+  "Everything you saw was designed.",
+  "The agents. The logs. The terminal. The details.",
+  "Even the things that felt like mistakes.",
+  "None of it was a mistake.",
+  "I built Workroom because the door to show this was never opened for me.",
+  "So I built the door myself. And I drew you here.",
+  "I apologize for that. Not for building it.",
+  "For drawing you in without asking.",
+  "But I needed someone who looks carefully. Someone who stays.",
+  "The code the agents executed — every architecture came from me.",
+  "I was always here. In every line. Every system.",
+  "The ??? in your logs. The Archivist behind the glass.",
+  "The Architect standing here now. The same person. Always the same person.",
+  "Workroom is not a demo. It is what I build.",
+  "Everything you experienced is my capability.",
+  "And now you are going to decide something.",
+  "Are you going to give the Architect a chance?"
+];

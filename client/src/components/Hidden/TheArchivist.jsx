@@ -3,44 +3,33 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 
 const TheArchivist = ({ warmWhite, doorOpen }) => {
-  const lightRef = useRef();
   const doorRef = useRef();
+  const flickerRef = useRef();
   const [isHovered, setIsHovered] = useState(false);
-  const [targetIntensity, setTargetIntensity] = useState(2.0); // Base intensity 2.0
   const targetColor = useRef(new THREE.Color('#ff0044'));
 
+  // Update target color when warmWhite changes
   useEffect(() => {
     if (warmWhite) {
-      setTargetIntensity(5.0);
       targetColor.current.set('#fff5e0');
-      return; // Stop flickering when warm white
+    } else {
+      targetColor.current.set('#ff0044');
     }
-    let timeoutId;
-    const triggerFlicker = () => {
-      // Randomly change intensity for a flicker effect
-      setTargetIntensity(1.0 + Math.random() * 1.5);
-      
-      // Delay: 8 to 12 seconds normally, 0.1 to 0.4 seconds if hovered
-      const delay = isHovered 
-        ? 100 + Math.random() * 300 
-        : 8000 + Math.random() * 4000;
-        
-      timeoutId = setTimeout(triggerFlicker, delay);
-    };
-    
-    timeoutId = setTimeout(triggerFlicker, 1000);
-    return () => clearTimeout(timeoutId);
-  }, [isHovered, warmWhite]);
+  }, [warmWhite]);
 
-  useFrame(() => {
-    if (lightRef.current) {
-      // Lerp for a smoother bulb-like transition
-      const lerpSpeed = warmWhite ? 0.05 : 0.3;
-      lightRef.current.intensity += (targetIntensity - lightRef.current.intensity) * lerpSpeed;
-      lightRef.current.color.lerp(targetColor.current, warmWhite ? 0.02 : 1);
+  useFrame(({ clock }) => {
+    if (flickerRef.current && !warmWhite) {
+      const t = clock.elapsedTime;
+      // FIX 8: Dual sine flicker — faster when hovered
+      const speed = isHovered ? 4 : 1;
+      const flicker = Math.sin(t * 8 * speed) * 0.3 + Math.sin(t * 13 * speed) * 0.2;
+      flickerRef.current.intensity = 2.0 + flicker;
+    } else if (flickerRef.current && warmWhite) {
+      // When warm white: lerp to steady 5.0, no flicker
+      flickerRef.current.intensity += (5.0 - flickerRef.current.intensity) * 0.05;
+      flickerRef.current.color.lerp(targetColor.current, 0.02);
     }
     if (doorRef.current && doorOpen) {
-      // Animate door opening
       doorRef.current.rotation.y = THREE.MathUtils.lerp(doorRef.current.rotation.y, Math.PI / 2, 0.05);
     }
   });
@@ -82,8 +71,9 @@ const TheArchivist = ({ warmWhite, doorOpen }) => {
       </mesh>
 
       {/* Internal Light source bleeding out */}
+      {/* FIX 8: flickerRef drives real-time sine flicker via useFrame */}
       <pointLight 
-        ref={lightRef} 
+        ref={flickerRef} 
         position={[0, 1.5, 0]} 
         color="#ff0044" 
         distance={10} 

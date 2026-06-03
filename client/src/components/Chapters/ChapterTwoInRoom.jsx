@@ -73,6 +73,7 @@ const ChapterTwoInRoom = ({ visible, onClose }) => {
       setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
 
       let buffer = '';
+      let assistantMessage = '';
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
@@ -85,19 +86,18 @@ const ChapterTwoInRoom = ({ visible, onClose }) => {
           if (trimmedLine.startsWith('data: ') && trimmedLine !== 'data: [DONE]') {
             try {
               const data = JSON.parse(trimmedLine.substring(6));
-              setMessages(prev => {
-                const updated = [...prev];
-                const lastMsg = updated[updated.length - 1];
-                // Fix word duplication: only append if not already ending with this text
-                const newText = data.text || '';
-                if (newText && !lastMsg.content.endsWith(newText)) {
+              const newText = data.text || '';
+              if (newText) {
+                assistantMessage += newText;
+                setMessages(prev => {
+                  const updated = [...prev];
                   updated[updated.length - 1] = {
-                    ...lastMsg,
-                    content: lastMsg.content + newText
+                    ...updated[updated.length - 1],
+                    content: assistantMessage
                   };
-                }
-                return updated;
-              });
+                  return updated;
+                });
+              }
             } catch (e) {}
           }
         }

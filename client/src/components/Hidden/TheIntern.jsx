@@ -54,7 +54,7 @@ const TheIntern = ({ isMeetingActive, onDismiss }) => {
   // ── Target opacity based on meeting state ──
   // 0.06 when visible — barely perceptible. A suggestion of form.
   // 0.0 when no meeting or dismissed.
-  const targetOpacity = (!dismissedRef.current && isMeetingActive) ? 0.06 : 0.0;
+  const targetOpacity = (!dismissedRef.current && isMeetingActive) ? 0.35 : 0.0;
 
   useFrame(() => {
     if (materialRef.current) {
@@ -102,36 +102,28 @@ const TheIntern = ({ isMeetingActive, onDismiss }) => {
   };
 
   return (
-    <group position={[0, 0, -15]}>
+    <group position={[1.5, 0.8, -6.5]}>
       {/* ── The silhouette ──────────────────────────────── */}
-      {/* Positioned at the back wall of the meeting room.   */}
-      {/* Tall, thin, perfectly still. No animation.         */}
-      {/* The mesh is slightly offset from center — it is    */}
-      {/* not sitting at the table. It is standing behind.   */}
+      {/* Tall, thin box silhouette standing in the meeting room. */}
       <mesh
-        position={[5.5, 1.0, -2.8]}
+        position={[0, 0, 0]}
         onClick={handleClick}
         renderOrder={10}
       >
-        <cylinderGeometry args={[0.12, 0.18, 1.5, 8]} />
-        <meshBasicMaterial
+        <boxGeometry args={[0.3, 1.6, 0.2]} />
+        <meshStandardMaterial
           ref={materialRef}
-          color="#000000"
+          color="#111111"
           transparent
           opacity={0.0}
-          depthWrite={false}
-          depthTest={false}
         />
       </mesh>
 
       {/* ── Ground shadow ──────────────────────────────── */}
-      {/* A faint oval beneath the figure. It persists for   */}
-      {/* a fraction of a second after the figure vanishes,  */}
-      {/* because the material ref is separate. This creates */}
-      {/* a "was something standing here?" moment.           */}
+      {/* Persists at the floor level (Y = 0, which is -0.8 relative to group Y = 0.8) */}
       {!dismissedRef.current && (
         <mesh
-          position={[5.5, 0.01, -2.8]}
+          position={[0, -0.79, 0]}
           rotation={[-Math.PI / 2, 0, 0]}
           renderOrder={10}
         >

@@ -278,7 +278,7 @@ function getDefaultAgents() {
       symbol: 'Δ',
       status: 'idle',
       task: null,
-      position: { x: 8, y: 4 },
+      position: { x: 6, y: -4 },
     },
   ];
 }

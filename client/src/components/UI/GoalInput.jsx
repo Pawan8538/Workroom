@@ -1,13 +1,62 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
-const GoalInput = ({ socket }) => {
+// Inject blink keyframe once
+if (typeof document !== 'undefined' && !document.getElementById('goal-blink-style')) {
+  const style = document.createElement('style');
+  style.id = 'goal-blink-style';
+  style.textContent = `
+    @keyframes goalBorderBlink {
+      0%   { border-bottom-color: #00f5ff; box-shadow: none; }
+      20%  { border-bottom-color: #ffffff; box-shadow: 0 0 12px #00f5ff, 0 0 24px #00f5ff; }
+      40%  { border-bottom-color: #00f5ff; box-shadow: none; }
+      60%  { border-bottom-color: #ffffff; box-shadow: 0 0 12px #00f5ff, 0 0 24px #00f5ff; }
+      80%  { border-bottom-color: #00f5ff; box-shadow: none; }
+      100% { border-bottom-color: #00f5ff; box-shadow: none; }
+    }
+  `;
+  document.head.appendChild(style);
+}
+
+const IDLE_BLINK_DELAY = 2 * 60 * 1000; // 2 minutes
+
+const GoalInput = ({ socket, isMeetingActive }) => {
   const [goal, setGoal] = useState('');
+  const [isBlinking, setIsBlinking] = useState(false);
+  const idleTimerRef = useRef(null);
+
+  // Start the 2-minute idle blink timer
+  const startIdleTimer = () => {
+    if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    idleTimerRef.current = setTimeout(() => {
+      // Blink twice (animation runs for 1.2s total = 2 × 0.6s pulses)
+      setIsBlinking(true);
+      setTimeout(() => setIsBlinking(false), 1400);
+    }, IDLE_BLINK_DELAY);
+  };
+
+  // Stop the timer
+  const stopIdleTimer = () => {
+    if (idleTimerRef.current) {
+      clearTimeout(idleTimerRef.current);
+      idleTimerRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    if (isMeetingActive) {
+      stopIdleTimer(); // Pause timer while meeting is happening
+    } else if (isMeetingActive === false) {
+      startIdleTimer(); // Start 2-minute timer once meeting ends
+    }
+    return stopIdleTimer;
+  }, [isMeetingActive]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!goal.trim()) return;
     const currentGoal = goal;
     setGoal('');
+    stopIdleTimer(); // Stop timer when they submit a goal
     try {
       const response = await fetch('http://localhost:5000/api/goal', {
         method: 'POST',
@@ -25,7 +74,7 @@ const GoalInput = ({ socket }) => {
     <>
       <div style={{
         position: 'absolute',
-        bottom: '80px', // Position above the input bar
+        bottom: '130px', // Position above the input bar
         left: '50%',
         transform: 'translateX(-50%)',
         color: '#00f5ff',
@@ -41,7 +90,7 @@ const GoalInput = ({ socket }) => {
       {/* Bottom Center Bar */}
       <div style={{
         position: 'absolute',
-        bottom: '30px',
+        bottom: '80px',
         left: '50%',
         transform: 'translateX(-50%)',
         width: '600px',
@@ -51,7 +100,8 @@ const GoalInput = ({ socket }) => {
         alignItems: 'center',
         padding: '10px 20px',
         zIndex: 100,
-        fontFamily: 'monospace'
+        fontFamily: 'monospace',
+        animation: isBlinking ? 'goalBorderBlink 1.4s ease-in-out' : 'none'
       }}>
         <form onSubmit={handleSubmit} style={{ flex: 1, display: 'flex' }}>
           <input
@@ -98,7 +148,7 @@ const GoalInput = ({ socket }) => {
           width: 'max-content',
           zIndex: 100
         }}>
-          {["Build an auth system", "Create a REST API", "Design a database schema", "Build a login page"].map((sug, i) => (
+          {["say hello world", "Create a REST API", "Design a database schema", "Build a login page"].map((sug, i) => (
             <div
               key={i}
               onClick={() => setGoal(sug)}

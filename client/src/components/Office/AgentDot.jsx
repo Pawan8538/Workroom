@@ -22,19 +22,23 @@ const AgentDot = ({ name, role, color, symbol, x, y, status, task, isSelected, o
   const waypoints = useMemo(() => {
     const upperName = name ? name.toUpperCase() : '';
     if (upperName === 'ARIA') {
+      // FIX 2: Cabin moved to x:-7. Desk inside at world z:-7. Stand inside cabin near PC.
+      // Cabin front opens at z:-4 area. Standing inside = z:-5.5 facing her monitor.
       return [
-        { x: -6, z: -4.5 },
-        { x: -5, z: -4.5 }
+        { x: -7, z: -5.5 },
+        { x: -6.5, z: -5.5 }
       ];
     } else if (upperName === 'KAEL') {
+      // KAEL desk at KAEL.home=[0,0,0]. Stand in front = z:+1.5
       return [
-        { x: 0, z: 1.2 },
-        { x: 1, z: 1.2 }
+        { x: 0, z: 1.5 },
+        { x: 1, z: 1.5 }
       ];
     } else if (upperName === 'ZENO') {
+      // ZENO desk at [6,0,-4]. Standing in front at z:-2.5 (right side, near clock wall)
       return [
-        { x: 6, z: -2.8 },
-        { x: 5, z: -2.8 }
+        { x: 7, z: -2.5 },
+        { x: 6.5, z: -2.5 }
       ];
     }
     return [{ x: clampedX, z: clampedZ }];
@@ -42,21 +46,22 @@ const AgentDot = ({ name, role, color, symbol, x, y, status, task, isSelected, o
 
   const currentWaypoint = waypoints[0] || { x: clampedX, z: clampedZ };
 
-  // Target position uses props if in a meeting, otherwise the local territory waypoint
+  // Target position: override (meeting chairs) takes priority, otherwise use territory waypoint
+  // NOTE: deliberately ignoring status==='meeting' here — meeting positions are fully driven
+  // by overrideX/Z props passed from OfficeCanvas. Without this, ZENO went to his socket
+  // position (near KAEL) instead of his waypoint after meeting ended.
   const targetX = useMemo(() => {
     if (overrideX !== undefined && overrideX !== null) return overrideX;
-    const rawX = status === 'meeting' ? clampedX : currentWaypoint.x;
-    return Math.max(OFFICE_BOUNDS.minX, Math.min(OFFICE_BOUNDS.maxX, rawX));
-  }, [status, clampedX, currentWaypoint.x, overrideX]);
+    return Math.max(OFFICE_BOUNDS.minX, Math.min(OFFICE_BOUNDS.maxX, currentWaypoint.x));
+  }, [currentWaypoint.x, overrideX]);
 
   const targetZ = useMemo(() => {
     if (overrideZ !== undefined && overrideZ !== null) return overrideZ;
-    const rawZ = status === 'meeting' ? clampedZ : currentWaypoint.z;
-    return Math.max(OFFICE_BOUNDS.minZ, Math.min(OFFICE_BOUNDS.maxZ, rawZ));
-  }, [status, clampedZ, currentWaypoint.z, overrideZ]);
+    return Math.max(OFFICE_BOUNDS.minZ, Math.min(OFFICE_BOUNDS.maxZ, currentWaypoint.z));
+  }, [currentWaypoint.z, overrideZ]);
 
-  const targetPos = useMemo(() => new THREE.Vector3(targetX, 0.5, targetZ), [targetX, targetZ]);
-  const currentPos = useRef(new THREE.Vector3(clampedX, 0.5, clampedZ));
+  const targetPos = useMemo(() => new THREE.Vector3(targetX, 0.6, targetZ), [targetX, targetZ]);
+  const currentPos = useRef(new THREE.Vector3(clampedX, 0.6, clampedZ));
   
   // ── Access the camera for "face the screen" behavior ──
   const { camera } = useThree();
@@ -147,31 +152,17 @@ const AgentDot = ({ name, role, color, symbol, x, y, status, task, isSelected, o
           <meshBasicMaterial color={color} transparent opacity={0.4} side={THREE.DoubleSide} />
         </mesh>
 
-        {/* ── Monospace Name Tag (Removed to prevent OrthographicCamera scale issues) ── */}
-        {/*
-        <Html distanceFactor={15} position={[0, -0.4, 0]} center style={{ transition: 'opacity 0.5s' }}>
+        <Html transform={false} center position={[0, 2.2, 0]} style={{ pointerEvents: 'none' }}>
           <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: '2px',
-            pointerEvents: 'none'
+            color: color,
+            fontFamily: 'monospace',
+            fontSize: '8px',
+            textShadow: `0 0 4px ${color}`,
+            whiteSpace: 'nowrap'
           }}>
-            <div style={{
-              color: isFrozen ? '#ff3333' : color,
-              fontFamily: 'monospace',
-              fontSize: '10px',
-              fontWeight: 'bold',
-              letterSpacing: '1px',
-              textShadow: `0 0 5px ${isFrozen ? '#ff3333' : color}`,
-              transition: 'all 0.4s ease',
-              textTransform: 'uppercase',
-            }}>
-              [{name}]
-            </div>
+            {name}
           </div>
         </Html>
-        */}
       </group>
     </group>
   );

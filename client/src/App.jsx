@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import OfficeCanvas from './components/Office/OfficeCanvas';
 import AgentPanel from './components/Agents/AgentPanel';
 import Header from './components/UI/Header';
 import GoalInput from './components/UI/GoalInput';
 import FourthWall from './components/UI/FourthWall';
-import ArchitectTerminal from './components/UI/ArchitectTerminal';
+
 import TheObserver from './components/Hidden/TheObserver';
 import ChapterTwoInRoom from './components/Chapters/ChapterTwoInRoom';
 import { useSocket } from './hooks/useSocket';
@@ -132,7 +132,7 @@ function App() {
 }, [isMeetingActive, gatePassed]);
 
   // ── Architect summon callback — fired by FourthWall.jsx ──
-  const handleArchitectSummon = () => {
+  const handleArchitectSummon = useCallback(() => {
     console.log('[App] Architect summoned. Showing ArchitectTerminal + figure.');
     // Spawn the 3D figure at the same time the terminal starts
     setArchitectFigureVisible(true);
@@ -146,7 +146,7 @@ function App() {
         timestamp: new Date().toISOString()
       });
     }
-  };
+  }, []);
 
   // ── Architect figure arrived at desk — sit him down ──
   const handleArchitectArrivedAtDesk = () => {
@@ -231,6 +231,7 @@ function App() {
         architectFigureVisible={architectFigureVisible}
         architectIsSeated={architectIsSeated}
         onArchitectArrivedAtDesk={handleArchitectArrivedAtDesk}
+        onArchitectClose={handleArchitectClose}
         cycle={cycle}
       />
 
@@ -238,17 +239,14 @@ function App() {
       <AgentPanel agents={agents} logs={logs} />
 
       {/* Goal input bar */}
-      {showGoalInput && <GoalInput socket={socket} />}
+      {showGoalInput && <GoalInput socket={socket} isMeetingActive={isMeetingActive} />}
 
       {/* Fourth wall overlay (Sequencer) — starts only after Deliverable finishes */}
       {isFourthWallTriggered && deliverableFinished && !showArchitect && (
         <FourthWall onArchitectSummon={handleArchitectSummon} />
       )}
 
-      {/* The Architect — fullscreen terminal overlay */}
-      {showArchitect && (
-        <ArchitectTerminal onClose={handleArchitectClose} />
-      )}
+
 
       {/* Deliverable screen overlay */}
       {showDeliverable && (
