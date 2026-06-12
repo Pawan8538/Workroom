@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
 import { Vector3 } from 'three';
-import { OrbitControls, OrthographicCamera, Environment, ContactShadows } from '@react-three/drei';
+import { OrbitControls, OrthographicCamera, Environment, ContactShadows, Html } from '@react-three/drei';
 import AgentDot from './AgentDot';
 import TheArchivist from '../Hidden/TheArchivist';
 import TheIntern from '../Hidden/TheIntern';
@@ -63,21 +63,33 @@ const SpeechBubbleProjector = ({ agents, bubbleCoords, meetingPositionsRef, isMe
 };
 
 // ── Camera zoom animator — runs inside Canvas so it has access to the camera ──
-const CameraZoomAnimator = ({ freezeZoomRef, isMeetingActive, showArchitect, meetingStartedAt, controlsRef }) => {
+const CameraZoomAnimator = ({ freezeZoomRef, isMeetingActive, showArchitect, meetingStartedAt, controlsRef, cameraPreset }) => {
   const { camera } = useThree();
-  const defaultPos = useMemo(() => new Vector3(15, 15, 15), []);
+
+  const presets = useMemo(() => ({
+    1: { pos: new Vector3(20, 18, 24), target: new Vector3(-1, 0, -1) },
+    2: { pos: new Vector3(15, 15, 15), target: new Vector3(0, 0, 0) },
+    3: { pos: new Vector3(28, 22, 10), target: new Vector3(-2, 0, -3) },
+    4: { pos: new Vector3(14, 20, 26), target: new Vector3(2, 0, 0) },
+  }), []);
 
   useFrame((state, delta) => {
+    if (cameraPreset === 5) return;
+
     const targetZoom = freezeZoomRef.current ? 55 : 38;
     // Lerp speed: covers the full range in ~2s (factor ~0.5 per second)
     const lerpFactor = 1 - Math.pow(0.008, delta);
     camera.zoom = camera.zoom + (targetZoom - camera.zoom) * lerpFactor;
 
-    let targetPos = defaultPos;
+    let targetPos = presets[cameraPreset] ? presets[cameraPreset].pos : presets[1].pos;
+    let targetLook = presets[cameraPreset] ? presets[cameraPreset].target : presets[1].target;
+
     if (showArchitect) {
       targetPos = new Vector3(0, 12, 12);
+      targetLook = new Vector3(0, 0, 0);
     } else if (freezeZoomRef.current) {
-      targetPos = new Vector3(23, 22, 23); 
+      targetPos = new Vector3(23, 22, 23);
+      targetLook = new Vector3(0, 0, 0);
     } else if (isMeetingActive && meetingStartedAt) {
       const waypoints = [
         new Vector3(15, 15, 15), // Center
@@ -88,30 +100,31 @@ const CameraZoomAnimator = ({ freezeZoomRef, isMeetingActive, showArchitect, mee
         new Vector3(0, 22, -3),  // KAEL
         new Vector3(15, 15, 15)  // Center
       ];
-      
+
       const elapsed = (Date.now() - new Date(meetingStartedAt).getTime()) / 1000;
       const duration = 45; // 45 seconds meeting duration
       let time = elapsed / duration;
       if (time > 1) time = 1;
       if (time < 0) time = 0;
-      
+
       const totalSegments = waypoints.length - 1;
       const scaledTime = time * totalSegments;
       const index = Math.floor(scaledTime);
       const frac = scaledTime - index;
-      
+
       if (index >= totalSegments) {
         targetPos = waypoints[totalSegments];
       } else {
         targetPos = new Vector3().copy(waypoints[index]).lerp(waypoints[index + 1], frac);
       }
+      targetLook = new Vector3(0, 0, 0);
     }
 
-    camera.position.lerp(targetPos, isMeetingActive ? 0.02 : 0.05);
+    const lerpSpeed = isMeetingActive ? 0.02 : 0.025;
+    camera.position.lerp(targetPos, lerpSpeed);
 
     if (controlsRef && controlsRef.current) {
-      const targetLook = new Vector3(0, 0, 0);
-      controlsRef.current.target.lerp(targetLook, 0.05);
+      controlsRef.current.target.lerp(targetLook, lerpSpeed);
       controlsRef.current.update();
     }
 
@@ -121,14 +134,36 @@ const CameraZoomAnimator = ({ freezeZoomRef, isMeetingActive, showArchitect, mee
   return null;
 };
 
-const OfficeCanvas = ({ agents: socketAgents = [], logs = [], thirdWallAgent = null, isMeetingActive = false, meetingStartedAt = null, ariaTaskAssignedAt = null, fourthWallAt = null, philosophicalAt = null, philosophicalText = null, terminalContent = null, soundEngine = null, architectOutcome = 'none', observerPCFlickering = false, onObserverPCClick, onPaperClick, showTerminal = false, onTerminalClose, socketAriaCabinLightOff = false, shadowTerminalAccess = false, showArchitect = false, architectFigureVisible = false, architectIsSeated = false, onArchitectArrivedAtDesk, onArchitectClose, cycle }) => {
+const OfficeCanvas = ({ agents: socketAgents = [], logs = [], thirdWallAgent = null, isMeetingActive = false, meetingStartedAt = null, ariaTaskAssignedAt = null, fourthWallAt = null, philosophicalAt = null, philosophicalText = null, terminalContent = null, soundEngine = null, architectOutcome = 'none', observerPCFlickering = false, onObserverPCClick, onPaperClick, showTerminal = false, onTerminalClose, socketAriaCabinLightOff = false, shadowTerminalAccess = false, showArchitect = false, architectFigureVisible = false, architectIsSeated = false, onArchitectArrivedAtDesk, onArchitectClose, cycle, isMusicPlaying = false, setIsMusicPlaying, musicPaused = false, setMusicPaused, isFourthWallTriggered = false }) => {
   const [selectedAgent, setSelectedAgent] = useState(null);
   const controlsRef = useRef();
   const freezeZoomRef = useRef(false);
   const [zenoPreWalkState, setZenoPreWalkState] = useState(null);
+  const [kaelPreWalkState, setKaelPreWalkState] = useState(null);
+  const [kaelOverrideLookAt, setKaelOverrideLookAt] = useState(null);
+  const [cameraPreset, setCameraPreset] = useState(1);
+  const audioContextRef = useRef(null);
 
   useEffect(() => {
-    if (cycle === 4) {
+    const handleKeyDown = (e) => {
+      if (['1', '2', '3', '4', '5'].includes(e.key)) {
+        setCameraPreset(parseInt(e.key, 10));
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  useEffect(() => {
+    if (cycle === 3) {
+      // KAEL walks to speaker
+      setKaelPreWalkState('speaker');
+      setTimeout(() => {
+        // Pause 1 second at speaker, then return to desk and start music
+        setKaelPreWalkState(null);
+        if (setIsMusicPlaying) setIsMusicPlaying(true);
+      }, 2000);
+    } else if (cycle === 4) {
       setZenoPreWalkState('observer');
       const timer1 = setTimeout(() => {
         setZenoPreWalkState('kael');
@@ -223,7 +258,7 @@ const OfficeCanvas = ({ agents: socketAgents = [], logs = [], thirdWallAgent = n
 
   const [introComplete, setIntroComplete] = useState(false);
   const [fadeBlack, setFadeBlack] = useState(true);
-  
+
   // ── Fourth Wall Orchestration States ──
   const [ariaCabinLightOff, setAriaCabinLightOff] = useState(false);
   const [zenoMonitorDark, setZenoMonitorDark] = useState(false);
@@ -250,6 +285,64 @@ const OfficeCanvas = ({ agents: socketAgents = [], logs = [], thirdWallAgent = n
   }, []);
 
   const meetingPositionsRef = useRef(null);
+
+  useEffect(() => {
+    // ── Web Audio API Logic for KAEL's Speaker ──
+    if (isFourthWallTriggered) {
+      if (audioContextRef.current) {
+        audioContextRef.current.close();
+        audioContextRef.current = null;
+      }
+      return;
+    }
+
+    if (isMusicPlaying && !musicPaused) {
+      if (!audioContextRef.current) {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        audioContextRef.current = ctx;
+
+        const osc = ctx.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(55, ctx.currentTime);
+
+        const gain = ctx.createGain();
+        gain.gain.setValueAtTime(0.03, ctx.currentTime);
+
+        const delay = ctx.createDelay();
+        delay.delayTime.value = 0.1;
+        const delayGain = ctx.createGain();
+        delayGain.gain.value = 0.5;
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        gain.connect(delay);
+        delay.connect(delayGain);
+        delayGain.connect(ctx.destination);
+
+        osc.start();
+      } else if (audioContextRef.current.state === 'suspended') {
+        audioContextRef.current.resume();
+      }
+    } else if (musicPaused && audioContextRef.current && audioContextRef.current.state === 'running') {
+      audioContextRef.current.suspend();
+    }
+  }, [isMusicPlaying, musicPaused, isFourthWallTriggered]);
+
+  const handleSpeakerClick = useCallback(() => {
+    if (isMusicPlaying && !musicPaused) {
+      if (setMusicPaused) setMusicPaused(true);
+      // Wait 8 seconds, KAEL glances towards speaker
+      setTimeout(() => {
+        setKaelOverrideLookAt({ x: 1.2, z: -0.2 }); // approximate speaker relative to KAEL
+        setTimeout(() => {
+          setKaelOverrideLookAt(null);
+        }, 1000);
+      }, 8000);
+    } else if (musicPaused) {
+      // Intentional asymmetry: no reaction, just resume
+      if (setMusicPaused) setMusicPaused(false);
+    }
+  }, [isMusicPlaying, musicPaused, setMusicPaused]);
 
   useEffect(() => {
     if (isMeetingActive) {
@@ -366,7 +459,7 @@ const OfficeCanvas = ({ agents: socketAgents = [], logs = [], thirdWallAgent = n
   // TASK_ACTIVE (on ariaTaskAssignedAt)
   useEffect(() => {
     if (!ariaTaskAssignedAt) return;
-    
+
     setBubbles(prev => ({ ...prev, ARIA: { text: AGENT_DIALOGUE.TASK_ACTIVE.ARIA[0], visible: true } }));
     setTimeout(() => setBubbles(prev => ({ ...prev, ARIA: { ...prev.ARIA, visible: false } })), 4000);
 
@@ -427,8 +520,8 @@ const OfficeCanvas = ({ agents: socketAgents = [], logs = [], thirdWallAgent = n
       } else if (prevTask && !currentTask) {
         // Task completed
         if (upperName === 'ARIA') {
-           setBubbles(prev => ({ ...prev, ARIA: { text: AGENT_DIALOGUE.TASK_ACTIVE.ARIA.done, visible: true } }));
-           setTimeout(() => setBubbles(prev => ({ ...prev, ARIA: { ...prev.ARIA, visible: false } })), 4000);
+          setBubbles(prev => ({ ...prev, ARIA: { text: AGENT_DIALOGUE.TASK_ACTIVE.ARIA.done, visible: true } }));
+          setTimeout(() => setBubbles(prev => ({ ...prev, ARIA: { ...prev.ARIA, visible: false } })), 4000);
         }
       }
 
@@ -518,13 +611,13 @@ const OfficeCanvas = ({ agents: socketAgents = [], logs = [], thirdWallAgent = n
 
       <Canvas shadows gl={{ antialias: true }}>
         {/* Isometric Camera Setup */}
-        <OrthographicCamera makeDefault position={[15, 15, 15]} zoom={38} near={0.1} far={1000} />
-        <CameraZoomAnimator freezeZoomRef={freezeZoomRef} isMeetingActive={isMeetingActive} showArchitect={showArchitect} meetingStartedAt={meetingStartedAt} controlsRef={controlsRef} />
+        <OrthographicCamera makeDefault position={[20, 18, 24]} zoom={38} near={0.1} far={1000} />
+        <CameraZoomAnimator freezeZoomRef={freezeZoomRef} isMeetingActive={isMeetingActive} showArchitect={showArchitect} meetingStartedAt={meetingStartedAt} controlsRef={controlsRef} cameraPreset={cameraPreset} />
         <OrbitControls
           ref={controlsRef}
-          enableRotate={false}
-          enablePan={false}
-          enableZoom={false}
+          enableRotate={cameraPreset === 5}
+          enablePan={cameraPreset === 5}
+          enableZoom={cameraPreset === 5}
           target={[0, 0, 0]}
           makeDefault
         />
@@ -583,6 +676,26 @@ const OfficeCanvas = ({ agents: socketAgents = [], logs = [], thirdWallAgent = n
             <boxGeometry args={[6, 4, 0.2]} />
             <meshStandardMaterial color="#1a2035" />
           </mesh>
+
+          <Html
+            transform
+            position={[0, 2.5, 8.11]}
+            rotation={[0, 0, 0]}
+            style={{ pointerEvents: 'none' }}
+          >
+            <div style={{
+              fontFamily: 'monospace',
+              fontSize: '48px',
+              fontWeight: 100,
+              color: '#ffffff',
+              letterSpacing: '12px',
+              opacity: 0.15,
+              whiteSpace: 'nowrap',
+              backfaceVisibility: 'hidden'
+            }}>
+              WORKROOM
+            </div>
+          </Html>
           {/* Door Frame */}
           <mesh position={[4, 2, 8]} receiveShadow castShadow>
             <boxGeometry args={[0.2, 4, 0.3]} />
@@ -610,17 +723,24 @@ const OfficeCanvas = ({ agents: socketAgents = [], logs = [], thirdWallAgent = n
             ariaTerminalLines={terminalContent?.aria}
             ariaCabinLightOff={ariaCabinLightOff || socketAriaCabinLightOff}
             zenoMonitorDark={zenoMonitorDark}
+            zenoPreWalkState={zenoPreWalkState}
             observerPCFlickering={observerPCFlickering}
             onObserverPCClick={() => { setAgentTerminalDismissed(true); onObserverPCClick && onObserverPCClick(); }}
             onPaperClick={onPaperClick}
             architectOutcome={architectOutcome}
             kaelMonitorBlank={shadowTerminalAccess}
+            isMeetingActive={isMeetingActive}
+            onDismiss={handleInternDismiss}
+            onSpeakerClick={handleSpeakerClick}
           />
         </group>
 
         {/* ── Dynamic Agents ────────────────────────────── */}
         {localAgents.map(agent => {
           let overridePos = meetingPositionsRef.current ? meetingPositionsRef.current[agent.name] : null;
+
+          let overrideLookAt = null;
+
           if (!overridePos && agent.name === 'ZENO') {
             if (zenoPreWalkState === 'observer') {
               overridePos = { x: 6.0, z: 2.5 }; // Approach observer table
@@ -628,12 +748,22 @@ const OfficeCanvas = ({ agents: socketAgents = [], logs = [], thirdWallAgent = n
               overridePos = { x: 6.0, z: 2.5 }; // Stay at observer table during dialogue
             }
           }
+          if (!overridePos && agent.name === 'KAEL') {
+            if (kaelPreWalkState === 'speaker') {
+              overridePos = { x: 1.2, z: 1.5 }; // Stand in front of right side of his desk
+            }
+            if (kaelOverrideLookAt) {
+              overrideLookAt = kaelOverrideLookAt;
+            }
+          }
+
           return (
             <AgentDot
               key={agent.id}
               {...agent}
               overrideX={overridePos?.x}
               overrideZ={overridePos?.z}
+              overrideLookAt={overrideLookAt}
               isSelected={selectedAgent === agent.id}
               isFrozen={thirdWallAgent === agent.id}
               onClick={() => setSelectedAgent(agent.id === selectedAgent ? null : agent.id)}

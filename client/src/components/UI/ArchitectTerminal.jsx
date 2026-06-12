@@ -381,7 +381,7 @@ const ArchitectTerminal = ({ onClose }) => {
             letterSpacing: '2px',
             margin: 0,
           }}>
-            Pawan Patidar
+            Architect
           </p>
           <a
             href="https://linked.com/in/pawan8538"

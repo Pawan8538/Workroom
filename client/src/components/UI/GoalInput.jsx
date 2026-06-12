@@ -7,10 +7,7 @@ if (typeof document !== 'undefined' && !document.getElementById('goal-blink-styl
   style.textContent = `
     @keyframes goalBorderBlink {
       0%   { border-bottom-color: #00f5ff; box-shadow: none; }
-      20%  { border-bottom-color: #ffffff; box-shadow: 0 0 12px #00f5ff, 0 0 24px #00f5ff; }
-      40%  { border-bottom-color: #00f5ff; box-shadow: none; }
-      60%  { border-bottom-color: #ffffff; box-shadow: 0 0 12px #00f5ff, 0 0 24px #00f5ff; }
-      80%  { border-bottom-color: #00f5ff; box-shadow: none; }
+      50%  { border-bottom-color: #ffffff; box-shadow: 0 0 12px #00f5ff, 0 0 24px #00f5ff; }
       100% { border-bottom-color: #00f5ff; box-shadow: none; }
     }
   `;
@@ -28,9 +25,8 @@ const GoalInput = ({ socket, isMeetingActive }) => {
   const startIdleTimer = () => {
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     idleTimerRef.current = setTimeout(() => {
-      // Blink twice (animation runs for 1.2s total = 2 × 0.6s pulses)
+      // Blink continuously until interacted with
       setIsBlinking(true);
-      setTimeout(() => setIsBlinking(false), 1400);
     }, IDLE_BLINK_DELAY);
   };
 
@@ -101,13 +97,14 @@ const GoalInput = ({ socket, isMeetingActive }) => {
         padding: '10px 20px',
         zIndex: 100,
         fontFamily: 'monospace',
-        animation: isBlinking ? 'goalBorderBlink 1.4s ease-in-out' : 'none'
+        animation: isBlinking ? 'goalBorderBlink 2.0s ease-in-out infinite' : 'none'
       }}>
         <form onSubmit={handleSubmit} style={{ flex: 1, display: 'flex' }}>
           <input
             type="text"
             value={goal}
-            onChange={(e) => setGoal(e.target.value)}
+            onClick={() => { setIsBlinking(false); stopIdleTimer(); }}
+            onChange={(e) => { setGoal(e.target.value); setIsBlinking(false); stopIdleTimer(); }}
             placeholder="e.g. Build an authentication system"
             spellCheck="false"
             style={{
@@ -151,7 +148,7 @@ const GoalInput = ({ socket, isMeetingActive }) => {
           {["say hello world", "Create a REST API", "Design a database schema", "Build a login page"].map((sug, i) => (
             <div
               key={i}
-              onClick={() => setGoal(sug)}
+              onClick={() => { setGoal(sug); setIsBlinking(false); stopIdleTimer(); }}
               style={{
                 padding: '4px 10px',
                 background: 'rgba(0, 245, 255, 0.05)',

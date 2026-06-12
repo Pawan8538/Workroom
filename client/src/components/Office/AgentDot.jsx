@@ -10,7 +10,7 @@ import * as THREE from 'three';
 
 import { OFFICE_BOUNDS } from '../../constants/OFFICE_LAYOUT';
 
-const AgentDot = ({ name, role, color, symbol, x, y, status, task, isSelected, onClick, isFrozen, overrideX, overrideZ }) => {
+const AgentDot = ({ name, role, color, symbol, x, y, status, task, isSelected, onClick, isFrozen, overrideX, overrideZ, overrideLookAt }) => {
   const meshRef = useRef();
   const ringRef = useRef();
   const glowRef = useRef();
@@ -83,6 +83,20 @@ const AgentDot = ({ name, role, color, symbol, x, y, status, task, isSelected, o
         ringRef.current.material.opacity = 0.6;
       }
       return;
+    }
+
+    // ── Glancing behavior ─────────────────────────────────
+    if (overrideLookAt) {
+      const target = new THREE.Vector3(overrideLookAt.x, meshRef.current.position.y, overrideLookAt.z);
+      meshRef.current.lookAt(target);
+    } else {
+      // Look towards movement direction
+      const moveDelta = new THREE.Vector3().subVectors(targetPos, currentPos.current);
+      if (moveDelta.lengthSq() > 0.001) {
+        const lookTarget = new THREE.Vector3().copy(currentPos.current).add(moveDelta.normalize());
+        lookTarget.y = meshRef.current.position.y;
+        meshRef.current.lookAt(lookTarget);
+      }
     }
 
     // ── Normal behavior ─────────────────────────────────

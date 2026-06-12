@@ -23,7 +23,7 @@ function App() {
   // ── Track the Architect outcome to control office brightness ──
   // 'none' = default, 'yes' = brightened, 'no' = normal dark
   const [architectOutcome, setArchitectOutcome] = useState('none');
-  
+
   // Phase 8 states
   const [observerPCFlickering, setObserverPCFlickering] = useState(false);
   const [showDeliverable, setShowDeliverable] = useState(false);
@@ -35,6 +35,10 @@ function App() {
   const [architectFigureVisible, setArchitectFigureVisible] = useState(false);
   const [architectIsSeated, setArchitectIsSeated] = useState(false);
   const [showChapterTwoInRoom, setShowChapterTwoInRoom] = useState(false);
+
+  // ── KAEL Music State ──
+  const [isMusicPlaying, setIsMusicPlaying] = useState(false);
+  const [musicPaused, setMusicPaused] = useState(false);
 
   const soundEngine = useSoundEngine();
 
@@ -76,7 +80,7 @@ function App() {
   useEffect(() => {
     // Phase 8 logic starts FourthWall sequencer
   }, [isFourthWallTriggered, deliverableFinished]);
-  
+
   useEffect(() => {
     if (isDeliverableReady && !showDeliverable && !deliverableFinished) {
       setObserverPCFlickering(true);
@@ -113,12 +117,12 @@ function App() {
   useEffect(() => {
     let isWorkroom = true;
     document.title = 'WORKROOM';
-    
+
     const interval = setInterval(() => {
       isWorkroom = !isWorkroom;
       document.title = isWorkroom ? 'WORKROOM' : '██████';
     }, 45000);
-    
+
     return () => {
       clearInterval(interval);
       document.title = 'WORKROOM';
@@ -126,10 +130,10 @@ function App() {
   }, []);
 
   useEffect(() => {
-  if (isMeetingActive === false && isMeetingActive !== null && gatePassed && !showGoalInput) {
-    setTimeout(() => setShowGoalInput(true), 3000);
-  }
-}, [isMeetingActive, gatePassed]);
+    if (isMeetingActive === false && isMeetingActive !== null && gatePassed && !showGoalInput) {
+      setTimeout(() => setShowGoalInput(true), 3000);
+    }
+  }, [isMeetingActive, gatePassed]);
 
   // ── Architect summon callback — fired by FourthWall.jsx ──
   const handleArchitectSummon = useCallback(() => {
@@ -233,6 +237,11 @@ function App() {
         onArchitectArrivedAtDesk={handleArchitectArrivedAtDesk}
         onArchitectClose={handleArchitectClose}
         cycle={cycle}
+        isMusicPlaying={isMusicPlaying}
+        setIsMusicPlaying={setIsMusicPlaying}
+        musicPaused={musicPaused}
+        setMusicPaused={setMusicPaused}
+        isFourthWallTriggered={isFourthWallTriggered}
       />
 
       {/* Right sidebar */}
