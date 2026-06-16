@@ -12,9 +12,7 @@ Built the terminal sequence today.
 Still not sure anyone will find it.
 
 But if they do —
-they were always going to.
-
-That is enough.`;
+they were always going to.`;
 
 /**
  * Text placeholder/value for the second layer of office papers.

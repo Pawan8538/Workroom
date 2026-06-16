@@ -246,14 +246,14 @@ export function useSoundEngine() {
 
   const startFoundationSounds = () => {
     console.log('[SoundEngine] Starting foundation sounds...');
-    playAmbientHum();
-    playKeyboardLoop();
+    // playAmbientHum();
+    // playKeyboardLoop();
 
     // Start clock interval if not already running
     if (!soundsRef.current.clockInterval) {
       soundsRef.current.clockInterval = setInterval(() => {
         console.log('[SoundEngine] 60s Clock Tick Interval Fired');
-        playClockTick();
+        // playClockTick();
       }, 60000);
       console.log('[SoundEngine] 60s Clock Tick Interval set up.');
     }

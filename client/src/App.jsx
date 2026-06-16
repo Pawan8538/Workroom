@@ -4,9 +4,8 @@ import AgentPanel from './components/Agents/AgentPanel';
 import Header from './components/UI/Header';
 import GoalInput from './components/UI/GoalInput';
 import FourthWall from './components/UI/FourthWall';
-
+import ChapterTwo from './components/Chapters/ChapterTwo';
 import TheObserver from './components/Hidden/TheObserver';
-import ChapterTwoInRoom from './components/Chapters/ChapterTwoInRoom';
 import { useSocket } from './hooks/useSocket';
 import GateScene from './components/UI/GateScene';
 import { useSoundEngine } from './hooks/useSoundEngine';
@@ -34,13 +33,34 @@ function App() {
   // ── Architect figure states ──
   const [architectFigureVisible, setArchitectFigureVisible] = useState(false);
   const [architectIsSeated, setArchitectIsSeated] = useState(false);
-  const [showChapterTwoInRoom, setShowChapterTwoInRoom] = useState(false);
-
+  const [showChapter2RequestForm, setShowChapter2RequestForm] = useState(false);
+  const [chapter2Approved, setChapter2Approved] = useState(false);
   // ── KAEL Music State ──
   const [isMusicPlaying, setIsMusicPlaying] = useState(false);
   const [musicPaused, setMusicPaused] = useState(false);
+  
+  // ── Phase 9: Observer Sync State ──
+  const [hasThirdWallCompleted, setHasThirdWallCompleted] = useState(false);
 
   const soundEngine = useSoundEngine();
+
+  // ── Observer Sync: Beam visibility to backend ──
+  useEffect(() => {
+    if (!socket) return;
+    
+    const handleVisibilityChange = () => {
+      // User is active ONLY if they passed the gate AND the tab is visible
+      const isActive = gatePassed && document.visibilityState === 'visible';
+      socket.emit('client:visibilityState', { isActive });
+      console.log(`[ObserverSync] client:visibilityState -> isActive: ${isActive}`);
+    };
+
+    // Trigger immediately when gatePassed changes
+    handleVisibilityChange();
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [gatePassed, socket]);
 
   // Trigger foundation sounds and scattered logs when the gate is passed
   useEffect(() => {
@@ -113,6 +133,17 @@ function App() {
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
 
+  // ── Unlock Goal Input after Third Wall ──
+  useEffect(() => {
+    if (!socket) return;
+    const handleThirdWallComplete = () => {
+      console.log('[App] Third Wall sequence completed. Unlocking Goal Input.');
+      setHasThirdWallCompleted(true);
+    };
+    socket.on('agent:thirdWallComplete', handleThirdWallComplete);
+    return () => socket.off('agent:thirdWallComplete', handleThirdWallComplete);
+  }, [socket]);
+
   // Hidden Observer Hint: Alternate document title every 45s
   useEffect(() => {
     let isWorkroom = true;
@@ -130,10 +161,10 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (isMeetingActive === false && isMeetingActive !== null && gatePassed && !showGoalInput) {
+    if (isMeetingActive === false && isMeetingActive !== null && gatePassed && hasThirdWallCompleted && !showGoalInput) {
       setTimeout(() => setShowGoalInput(true), 3000);
     }
-  }, [isMeetingActive, gatePassed]);
+  }, [isMeetingActive, gatePassed, hasThirdWallCompleted, showGoalInput]);
 
   // ── Architect summon callback — fired by FourthWall.jsx ──
   const handleArchitectSummon = useCallback(() => {
@@ -152,27 +183,35 @@ function App() {
     }
   }, []);
 
-  // ── Architect figure arrived at desk — sit him down ──
+  // ── Architect figure arrived at desk — show form after 5 seconds ──
   const handleArchitectArrivedAtDesk = () => {
-    setArchitectIsSeated(true);
-    console.log('[App] Architect arrived at Observer desk. Sitting.');
+    console.log('[App] Architect arrived at Observer desk.');
+    setTimeout(() => {
+      setShowChapter2RequestForm(true);
+    }, 5000);
   };
 
-  // ── Architect close callback — fired by ArchitectTerminal.jsx ──
-  const handleArchitectClose = (outcome) => {
-    console.log('[App] Architect sequence complete. Outcome:', outcome);
-    setShowArchitect(false);
-    setArchitectOutcome(outcome || 'no');
-
-    if (outcome === 'yes') {
-      // Stay in the room: show in-room Chapter 2 conversation
-      // Figure stays at desk (architectFigureVisible remains true, seated)
-      setShowChapterTwoInRoom(true);
+  const handleChapter2RequestSubmit = (approved) => {
+    setShowChapter2RequestForm(false);
+    if (approved) {
+      setChapter2Approved(true);
     } else {
-      // NO path: figure walks back (handled by figure or just hide after delay)
       setTimeout(() => {
         setArchitectFigureVisible(false);
-        setArchitectIsSeated(false);
+        setShowArchitect(false);
+      }, 5000);
+    }
+  };
+
+  // ── Architect close callback — fired by ArchitectFigure.jsx after YES/NO ──
+  const handleArchitectClose = (outcome) => {
+    console.log('[App] Architect sequence complete. Outcome:', outcome);
+    setArchitectOutcome(outcome || 'no');
+
+    if (outcome === 'no') {
+      setTimeout(() => {
+        setArchitectFigureVisible(false);
+        setShowArchitect(false);
       }, 5000);
     }
   };
@@ -236,6 +275,7 @@ function App() {
         architectIsSeated={architectIsSeated}
         onArchitectArrivedAtDesk={handleArchitectArrivedAtDesk}
         onArchitectClose={handleArchitectClose}
+        chapter2Approved={chapter2Approved}
         cycle={cycle}
         isMusicPlaying={isMusicPlaying}
         setIsMusicPlaying={setIsMusicPlaying}
@@ -267,11 +307,10 @@ function App() {
         <Day47Modal onClose={() => setShowDay47Modal(false)} />
       )}
 
-      {/* Chapter 2 in-room conversation */}
-      <ChapterTwoInRoom
-        visible={showChapterTwoInRoom}
-        onClose={() => setShowChapterTwoInRoom(false)}
-      />
+      {/* Chapter 2 Authorization Form (End of Chapter 1) */}
+      {showChapter2RequestForm && (
+        <ChapterTwo onSubmitForm={handleChapter2RequestSubmit} />
+      )}
 
       {/* The Observer — renders nothing */}
       <TheObserver />

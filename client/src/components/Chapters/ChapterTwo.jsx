@@ -1,156 +1,111 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 
-const ChapterTwo = () => {
-  const [messages, setMessages] = useState([
-    { role: 'assistant', content: 'You found the door. I am the Architect.' }
-  ]);
-  const [input, setInput] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
-  const scrollRef = useRef(null);
-
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [messages]);
+export default function ChapterTwo({ onSubmitForm }) {
+  const [formData, setFormData] = useState({ name: '', role: '', company: '' });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [resultMsg, setResultMsg] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!input.trim() || isTyping) return;
-
-    const newMessages = [...messages, { role: 'user', content: input.trim() }];
-    setMessages(newMessages);
-    setInput('');
-    setIsTyping(true);
+    if (!formData.name || !formData.role || !formData.company) return;
+    setIsSubmitting(true);
 
     try {
-      const res = await fetch('http://localhost:5000/api/chapter2/chat', {
+      const sessionId = window.__doorkeeper?.sessionId || 'sess_' + Math.random().toString(36).substr(2, 9);
+      await fetch('http://localhost:5000/api/chapter2/request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: newMessages.map(m => ({ role: m.role, content: m.content })) })
-      });
+        body: JSON.stringify({ ...formData, sessionId })
+      }).catch(() => {});
 
-      if (!res.body) throw new Error('No readable stream');
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-
-      setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
-
-      let buffer = '';
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop();
-        for (const line of lines) {
-          const trimmedLine = line.trim();
-          if (trimmedLine.startsWith('data: ') && trimmedLine !== 'data: [DONE]') {
-            try {
-              const data = JSON.parse(trimmedLine.substring(6));
-              setMessages(prev => {
-                const updated = [...prev];
-                updated[updated.length - 1].content += data.text;
-                return updated;
-              });
-            } catch(e) {}
-          }
-        }
+      const role = formData.role.toLowerCase();
+      if (role === 'student' || role === 'other') {
+        setResultMsg('Request received. You will be informed on mail very soon.');
+        // Notify parent to close without approval
+        setTimeout(() => onSubmitForm(false), 4000);
+      } else {
+        // Auto-approve
+        setResultMsg('Access Granted. The Architect is ready.');
+        setTimeout(() => onSubmitForm(true), 2000);
       }
-    } catch(err) {
-      console.error(err);
-      setMessages(prev => [...prev, { role: 'assistant', content: '[Connection lost. Cannot reach the Architect.]' }]);
-    } finally {
-      setIsTyping(false);
+    } catch (err) {
+      onSubmitForm(false);
     }
   };
 
   return (
     <div style={{
-      width: '100vw',
-      height: '100vh',
-      display: 'flex',
-      flexDirection: 'column',
-      background: '#1a1208',
-      color: '#f5f0e8',
-      fontFamily: "'Courier New', Courier, monospace",
-      position: 'absolute',
-      top: 0, left: 0, zIndex: 300,
-      boxSizing: 'border-box'
+      position: 'fixed', inset: 0, zIndex: 9999,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(4px)',
+      color: '#fff', fontFamily: 'monospace'
     }}>
-      <div 
-        ref={scrollRef}
-        style={{
-          flex: 1,
-          overflowY: 'auto',
-          padding: '40px 20%',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '20px'
-        }}
-      >
-        {messages.map((m, i) => (
-          <div key={i} style={{
-            alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start',
-            maxWidth: '60%',
-            opacity: 0.9,
-            lineHeight: 1.5,
-            fontSize: '1rem',
-          }}>
-            {m.role === 'user' ? (
-              <span style={{ color: 'rgba(245,240,232,0.5)' }}>&gt; </span>
-            ) : null}
-            {m.content}
+      <div style={{
+        background: '#111', padding: '40px', border: '1px solid #333',
+        width: '400px', display: 'flex', flexDirection: 'column', gap: '20px',
+        boxShadow: '0 0 20px rgba(0,0,0,0.5)'
+      }}>
+        <h2 style={{ margin: 0, fontSize: '18px', letterSpacing: '2px', borderBottom: '1px solid #333', paddingBottom: '10px' }}>
+          CHAPTER 2: AUTHORIZATION
+        </h2>
+        
+        {resultMsg ? (
+          <div style={{ color: resultMsg.includes('Granted') ? '#00ff00' : '#cccccc', lineHeight: 1.6 }}>
+            {resultMsg}
           </div>
-        ))}
-        {isTyping && (
-          <div style={{ alignSelf: 'flex-start', opacity: 0.5 }}>
-            <span style={{ animation: 'blink 1s infinite' }}>▊</span>
-          </div>
+        ) : (
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+              <label style={{ fontSize: '12px', color: '#888' }}>NAME</label>
+              <input 
+                type="text" required value={formData.name}
+                onChange={e => setFormData({ ...formData, name: e.target.value })}
+                style={{ background: '#000', border: '1px solid #444', color: '#fff', padding: '10px', fontFamily: 'monospace', outline: 'none' }}
+              />
+            </div>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+              <label style={{ fontSize: '12px', color: '#888' }}>DESIGNATION</label>
+              <select 
+                required value={formData.role}
+                onChange={e => setFormData({ ...formData, role: e.target.value })}
+                style={{ background: '#000', border: '1px solid #444', color: '#fff', padding: '10px', fontFamily: 'monospace', outline: 'none' }}
+              >
+                <option value="">Select Role...</option>
+                <option value="Student">Student</option>
+                <option value="CEO/CTO">CEO / CTO</option>
+                <option value="Product Manager">Product Manager</option>
+                <option value="Recruiter">Recruiter / Talent</option>
+                <option value="Senior Engineer">Senior Engineer</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+              <label style={{ fontSize: '12px', color: '#888' }}>CURRENT COMPANY / INSTITUTION</label>
+              <input 
+                type="text" required value={formData.company}
+                onChange={e => setFormData({ ...formData, company: e.target.value })}
+                style={{ background: '#000', border: '1px solid #444', color: '#fff', padding: '10px', fontFamily: 'monospace', outline: 'none' }}
+              />
+            </div>
+            
+            <button 
+              type="submit" disabled={isSubmitting}
+              style={{
+                marginTop: '10px', background: 'transparent', border: '1px solid #fff',
+                color: '#fff', padding: '12px', cursor: 'pointer', fontFamily: 'monospace',
+                letterSpacing: '2px', transition: 'all 0.2s ease'
+              }}
+              onMouseEnter={e => e.target.style.background = '#222'}
+              onMouseLeave={e => e.target.style.background = 'transparent'}
+            >
+              {isSubmitting ? 'VERIFYING...' : 'REQUEST ACCESS'}
+            </button>
+          </form>
         )}
       </div>
-
-      <div style={{ padding: '20px 20%', borderTop: '1px solid rgba(245,240,232,0.1)' }}>
-        <form onSubmit={handleSubmit} style={{ display: 'flex', gap: '10px' }}>
-          <input 
-            type="text" 
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            disabled={isTyping}
-            placeholder="Type your response..."
-            style={{
-              flex: 1,
-              background: 'transparent',
-              border: '1px solid rgba(245,240,232,0.2)',
-              color: '#f5f0e8',
-              padding: '15px',
-              fontFamily: 'inherit',
-              fontSize: '1rem',
-              outline: 'none'
-            }}
-          />
-          <button 
-            type="submit" 
-            disabled={isTyping || !input.trim()}
-            style={{
-              background: 'rgba(245,240,232,0.1)',
-              border: '1px solid rgba(245,240,232,0.3)',
-              color: '#f5f0e8',
-              padding: '0 30px',
-              cursor: isTyping || !input.trim() ? 'default' : 'pointer',
-              fontFamily: 'inherit',
-              transition: 'background 0.2s'
-            }}
-          >
-            SEND
-          </button>
-        </form>
-      </div>
-      <style>{`
-        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
-      `}</style>
     </div>
   );
 };
 
-export default ChapterTwo;

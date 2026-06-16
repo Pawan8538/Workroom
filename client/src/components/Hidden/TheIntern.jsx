@@ -31,8 +31,9 @@
 //
 // ─────────────────────────────────────────────────────────────
 
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
+import * as THREE from 'three';
 
 const TheIntern = ({ isMeetingActive, onDismiss }) => {
   // ── Once dismissed, gone forever (this session) ──
@@ -43,8 +44,15 @@ const TheIntern = ({ isMeetingActive, onDismiss }) => {
   // ── Force re-render after dismiss by using a state trigger ──
   const [_, setForceRender] = React.useState(0);
 
-  // ── Ref for opacity animation ──
-  const materialRef = useRef();
+  // ── Shared Material for all body parts ──
+  const internMaterial = useMemo(() => {
+    return new THREE.MeshStandardMaterial({
+      color: "#111111",
+      transparent: true,
+      opacity: 0.0,
+      depthWrite: false
+    });
+  }, []);
 
   // Console log on mount to confirm rendering
   useEffect(() => {
@@ -52,20 +60,18 @@ const TheIntern = ({ isMeetingActive, onDismiss }) => {
   }, [isMeetingActive]);
 
   // ── Target opacity based on meeting state ──
-  // 0.06 when visible — barely perceptible. A suggestion of form.
+  // 0.35 when visible — barely perceptible. A suggestion of form.
   // 0.0 when no meeting or dismissed.
   const targetOpacity = (!dismissedRef.current && isMeetingActive) ? 0.35 : 0.0;
 
   useFrame(() => {
-    if (materialRef.current) {
-      // Slow fade in, instant snap on dismiss
-      if (dismissedRef.current) {
-        materialRef.current.opacity = 0;
-      } else {
-        // Gradual approach — takes ~2 seconds to fully materialize
-        materialRef.current.opacity +=
-          (targetOpacity - materialRef.current.opacity) * 0.02;
-      }
+    // Slow fade in, instant snap on dismiss
+    if (dismissedRef.current) {
+      internMaterial.opacity = 0;
+    } else {
+      // Gradual approach — takes ~5 seconds to fully materialize
+      internMaterial.opacity +=
+        (targetOpacity - internMaterial.opacity) * 0.008;
     }
   });
 
@@ -102,28 +108,46 @@ const TheIntern = ({ isMeetingActive, onDismiss }) => {
   };
 
   return (
-    <group position={[1.5, 0.8, -6.5]}>
+    // Changed group origin to ground level (Y=0) to support scale={0.6} body
+    <group position={[1.5, 0, -6.5]}>
       {/* ── The silhouette ──────────────────────────────── */}
-      {/* Tall, thin box silhouette standing in the meeting room. */}
-      <mesh
-        position={[0, 0, 0]}
+      {/* Full body figure mimicking AgentDot structure */}
+      <group
+        scale={0.6}
         onClick={handleClick}
         renderOrder={10}
       >
-        <boxGeometry args={[0.3, 1.6, 0.2]} />
-        <meshStandardMaterial
-          ref={materialRef}
-          color="#111111"
-          transparent
-          opacity={0.0}
-        />
-      </mesh>
+        {/* Head */}
+        <mesh position={[0, 2.1, 0]} material={internMaterial}>
+          <boxGeometry args={[0.4, 0.4, 0.4]} />
+        </mesh>
+        {/* Torso */}
+        <mesh position={[0, 1.4, 0]} material={internMaterial}>
+          <boxGeometry args={[0.6, 0.8, 0.3]} />
+        </mesh>
+        {/* Left Leg */}
+        <mesh position={[-0.18, 0.5, 0]} material={internMaterial}>
+          <boxGeometry args={[0.2, 1.0, 0.25]} />
+        </mesh>
+        {/* Right Leg */}
+        <mesh position={[0.18, 0.5, 0]} material={internMaterial}>
+          <boxGeometry args={[0.2, 1.0, 0.25]} />
+        </mesh>
+        {/* Left Arm */}
+        <mesh position={[-0.4, 1.4, 0]} material={internMaterial}>
+          <boxGeometry args={[0.18, 0.7, 0.2]} />
+        </mesh>
+        {/* Right Arm */}
+        <mesh position={[0.4, 1.4, 0]} material={internMaterial}>
+          <boxGeometry args={[0.18, 0.7, 0.2]} />
+        </mesh>
+      </group>
 
       {/* ── Ground shadow ──────────────────────────────── */}
-      {/* Persists at the floor level (Y = 0, which is -0.8 relative to group Y = 0.8) */}
+      {/* Persists at the floor level (Y = 0.01 to avoid z-fighting) */}
       {!dismissedRef.current && (
         <mesh
-          position={[0, -0.79, 0]}
+          position={[0, 0.01, 0]}
           rotation={[-Math.PI / 2, 0, 0]}
           renderOrder={10}
         >

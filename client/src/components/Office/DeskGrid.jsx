@@ -516,7 +516,7 @@ const KaelDesk = ({ agentTerminalContent, kaelTerminalLines, isBlank, onSpeakerC
 
       {/* Speaker on right side - Interactive */}
       <group
-        position={[1.2, 0.81 + (speakerPressed ? -0.01 : 0), -0.2]}
+        position={[1.2, 0.81 + (speakerPressed ? -0.01 : 0), 0.5]}
         scale={speakerHovered ? [1.05, 1.05, 1.05] : [1, 1, 1]}
       >
         <mesh
@@ -879,9 +879,16 @@ const ObserverPC = ({ position, isFlickering, onClick }) => {
 };
 
 // ── 5. OBSERVER DESK ── (Single PC, right-front corner area)
-const ObserverDesk = ({ observerPCFlickering, onObserverPCClick, onPaperClick }) => {
+const ObserverDesk = ({ observerPCFlickering, onObserverPCClick, onPaperClick, architectOutcome }) => {
   const [lampLifted, setLampLifted] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+
+  // Auto-open drawer if Architect monologue ends
+  useEffect(() => {
+    if (architectOutcome === 'yes' || architectOutcome === 'no') {
+      setTimeout(() => setDrawerOpen(true), 1500);
+    }
+  }, [architectOutcome]);
 
   const handleLampClick = (e) => {
     e.stopPropagation();
@@ -943,6 +950,96 @@ const ObserverDesk = ({ observerPCFlickering, onObserverPCClick, onPaperClick })
         <meshStandardMaterial color="#d4af37" roughness={0.4} metalness={0.8} />
       </mesh>
 
+      {/* 2D Modal Overlay for Drawer Card */}
+      {drawerOpen && (
+        <Html center position={[0, 0, 0]} zIndexRange={[100, 0]}>
+          <div style={{
+            position: 'fixed',
+            inset: 0,
+            width: '100vw',
+            height: '100vh',
+            transform: 'translate(-50%, -50%)',
+            zIndex: 10000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer'
+          }} onClick={(e) => { e.stopPropagation(); setDrawerOpen(false); }}>
+            <div style={{
+              backgroundColor: '#0a0a0f',
+              color: '#ffffff',
+              padding: '40px 50px',
+              maxWidth: '450px',
+              fontFamily: 'monospace',
+              fontSize: '14px',
+              lineHeight: '1.6',
+              boxShadow: '0 0 50px rgba(0,245,255,0.15)',
+              border: '1px solid rgba(0,245,255,0.3)',
+              borderRadius: '8px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              cursor: 'auto'
+            }} onClick={(e) => e.stopPropagation()}>
+              
+              <strong style={{ fontSize: '24px', letterSpacing: '4px', color: '#00f5ff', marginBottom: '8px' }}>THE ARCHITECT</strong>
+              <span style={{ fontSize: '12px', color: '#888', letterSpacing: '2px', marginBottom: '30px' }}>SYSTEMS & WORKROOM CREATOR</span>
+              
+              <div style={{ display: 'flex', gap: '20px', width: '100%', justifyContent: 'center' }}>
+                <a href="mailto:contact@workroom.sh" style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  color: '#fff',
+                  textDecoration: 'none',
+                  padding: '10px 20px',
+                  border: '1px solid #333',
+                  borderRadius: '6px',
+                  transition: 'all 0.2s ease',
+                  background: 'rgba(255,255,255,0.05)'
+                }}
+                onMouseOver={(e) => e.currentTarget.style.borderColor = '#00f5ff'}
+                onMouseOut={(e) => e.currentTarget.style.borderColor = '#333'}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                    <polyline points="22,6 12,13 2,6"></polyline>
+                  </svg>
+                  Email
+                </a>
+                
+                <a href="https://linkedin.com/" target="_blank" rel="noopener noreferrer" style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  color: '#fff',
+                  textDecoration: 'none',
+                  padding: '10px 20px',
+                  border: '1px solid #333',
+                  borderRadius: '6px',
+                  transition: 'all 0.2s ease',
+                  background: 'rgba(255,255,255,0.05)'
+                }}
+                onMouseOver={(e) => e.currentTarget.style.borderColor = '#00f5ff'}
+                onMouseOut={(e) => e.currentTarget.style.borderColor = '#333'}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"></path>
+                    <rect x="2" y="9" width="4" height="12"></rect>
+                    <circle cx="4" cy="4" r="2"></circle>
+                  </svg>
+                  LinkedIn
+                </a>
+              </div>
+              
+              <div style={{ marginTop: '30px', fontSize: '10px', color: '#555', letterSpacing: '1px' }}>
+                SECURE CHANNEL OPEN // ENCRYPTED
+              </div>
+            </div>
+          </div>
+        </Html>
+      )}
+
       {/* Notebook */}
       <mesh position={[1.0, 0.76, 0.2]} rotation={[0, 0.2, 0]} castShadow>
         <boxGeometry args={[0.2, 0.01, 0.15]} />
@@ -967,8 +1064,8 @@ const ObserverDesk = ({ observerPCFlickering, onObserverPCClick, onPaperClick })
         </mesh>
       </group>
 
-      {/* Chair — pulled out slightly */}
-      <group position={[0.1, 0.4, 1.3]} rotation={[0, 0.05, 0]}>
+      {/* Chair — pulled out waiting for someone */}
+      <group position={[0.4, 0.4, 1.8]} rotation={[0, 0.4, 0]}>
         <mesh castShadow>
           <boxGeometry args={[0.6, 0.1, 0.6]} />
           <meshStandardMaterial color="#c48b59" roughness={0.8} />
@@ -1020,40 +1117,6 @@ const ObserverDesk = ({ observerPCFlickering, onObserverPCClick, onPaperClick })
 
       {/* Coffee Cup */}
       <CoffeeCup position={[0.8, 0.76, 0.3]} />
-
-      {/* Modal Overlay for Drawer */}
-      {drawerOpen && (
-        <Html center position={[0, 2, 0]} zIndexRange={[100, 0]}>
-          <div style={{
-            position: 'fixed',
-            inset: 0,
-            width: '100vw',
-            height: '100vh',
-            transform: 'translate(-50%, -50%)',
-            backgroundColor: 'rgba(0,0,0,0.85)',
-            zIndex: 10000,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer'
-          }} onClick={(e) => { e.stopPropagation(); setDrawerOpen(false); }}>
-            <div style={{
-              backgroundColor: '#eae5d8',
-              color: '#1a1a1a',
-              padding: '40px',
-              maxWidth: '500px',
-              fontFamily: 'monospace',
-              fontSize: '16px',
-              lineHeight: '1.6',
-              boxShadow: '0 0 40px rgba(0,0,0,0.6)',
-              transform: 'rotate(-2deg)',
-              whiteSpace: 'pre-wrap'
-            }} onClick={(e) => e.stopPropagation()}>
-              WELCOME OBSERVER
-            </div>
-          </div>
-        </Html>
-      )}
     </group>
   );
 };
@@ -1273,7 +1336,7 @@ const EvolutionWall = () => {
   );
 };
 
-const DeskGrid = ({ agentTerminalContent, kaelTerminalLines, zenoTerminalLines, ariaTerminalLines, ariaCabinLightOff, zenoMonitorDark, observerPCFlickering, onObserverPCClick, onPaperClick, architectOutcome, kaelMonitorBlank, onSpeakerClick }) => {
+const DeskGrid = ({ agentTerminalContent, kaelTerminalLines, zenoTerminalLines, ariaTerminalLines, ariaCabinLightOff, zenoMonitorDark, observerPCFlickering, onObserverPCClick, onPaperClick, architectOutcome, showArchitect, kaelMonitorBlank, onSpeakerClick, archivistDoorOpen }) => {
   return (
     <group>
       <InternDesk />
@@ -1281,7 +1344,7 @@ const DeskGrid = ({ agentTerminalContent, kaelTerminalLines, zenoTerminalLines, 
       <MeetingRoom />
       <KaelDesk agentTerminalContent={agentTerminalContent} kaelTerminalLines={kaelTerminalLines} isBlank={kaelMonitorBlank} onSpeakerClick={onSpeakerClick} />
       <ZenoDesk agentTerminalContent={agentTerminalContent} zenoTerminalLines={zenoTerminalLines} monitorDark={zenoMonitorDark} />
-      <ObserverDesk observerPCFlickering={observerPCFlickering} onObserverPCClick={onObserverPCClick} onPaperClick={onPaperClick} />
+      <ObserverDesk observerPCFlickering={observerPCFlickering} onObserverPCClick={onObserverPCClick} onPaperClick={onPaperClick} architectOutcome={architectOutcome} />
       <WallDecorations architectOutcome={architectOutcome} />
       <EvolutionWall />
 
@@ -1310,10 +1373,12 @@ const DeskGrid = ({ agentTerminalContent, kaelTerminalLines, zenoTerminalLines, 
         </div>
       </Html>
 
-      {/* ── Archivist Red Glow ── */}
-      <group position={[-8, 1.5, 6]}>
+      {/* ── Architect Room (Between Washroom and Server Room) ── */}
+      <group position={[-8.5, 1.5, 6]}>
         <pointLight intensity={4.0} color="#ff0044" distance={10} />
         <pointLight intensity={2.0} color="#ff2200" distance={10} />
+        
+        {/* Glass walls have been removed from here as per user request */}
       </group>
 
       {/* Server Room */}

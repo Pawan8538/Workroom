@@ -9,7 +9,7 @@
 //  4. Tracks active connections for cleanup
 // ─────────────────────────────────────────────────────────────
 
-import { handleAgentEvents, startSpontaneousMeeting } from './agentEvents.js';
+import { handleAgentEvents, startSpontaneousMeeting, endSpontaneousMeeting } from './agentEvents.js';
 
 // ── The 3 eerie shadow messages that rotate per session ──
 const SHADOW_MESSAGES = [
@@ -40,102 +40,95 @@ export const setupSocket = (io) => {
     // ── Wire up all bidirectional agent events ──
     handleAgentEvents(io, socket);
 
-    // Initialize active timers object for this connection
-    const activeTimers = {
-      shadow: null,
-      archivist1: null,
-      cabinLight: null,
-      cabinLightOn: null,
-      shadowTerminal: null,
-      cycle: null,
-      meeting: null
-    };
-    sessionTimers.set(socket.id, activeTimers);
+    // ── Observer Sync Architecture ──
+    // The timeline ONLY ticks if the visitor has passed the Gate and their tab is visible.
+    let isActive = false;
+    let sessionTimeSeconds = 0;
 
-    // Timed log entry: [ARCHIVIST] Entry updated. at 47 seconds
-    activeTimers.archivist1 = setTimeout(() => {
-      socket.emit('agent:logEntry', {
-        agentId: 'ARCHIVIST',
-        message: 'Entry updated.',
-        type: 'archivist',
-        timestamp: new Date().toISOString(),
-      });
-    }, 47000);
+    socket.on('client:visibilityState', (data) => {
+      isActive = data.isActive;
+      console.log(`[Socket] Observer Sync -> ${socket.id} isActive: ${isActive}`);
+    });
 
-    // ── Start the shadow agent timer for this session ──
-    // After 90 seconds, emit a single eerie log entry and a parallel [???] still active log
-    activeTimers.shadow = setTimeout(() => {
-      // Pick a message based on a rotating index
-      const msgIndex = Math.floor(Math.random() * SHADOW_MESSAGES.length);
-
-      // Emit only to THIS client's session — the shadow is personal
-      socket.emit('agent:shadowLog', {
-        agent: '???',
-        message: SHADOW_MESSAGES[msgIndex],
-        timestamp: new Date().toISOString(),
-        type: 'shadow',
-      });
-
-      // Parallel [???] still active log
-      socket.emit('agent:logEntry', {
-        agentId: '???',
-        message: 'still active.',
-        type: 'shadow',
-        timestamp: new Date().toISOString(),
-      });
-
-      console.log(`[Socket] ◈ Shadow log emitted to ${socket.id}`);
-    }, 90000); // 90 seconds
-
-    // Timed random event: ARIA Cabin Light 8-Second Off Event (2-4 minutes)
-    const cabinLightOffTime = 120000 + Math.random() * 120000;
-    activeTimers.cabinLight = setTimeout(() => {
-      socket.emit('simulation:ariaCabinLightOff', { timestamp: new Date().toISOString() });
-      activeTimers.cabinLightOn = setTimeout(() => {
-        socket.emit('simulation:ariaCabinLightOn', { timestamp: new Date().toISOString() });
-      }, 8000);
-    }, cabinLightOffTime);
-
-    // Timed random event: ??? KAEL Terminal Blank + Office Light Flicker (3-6 minutes)
-    const shadowTerminalTime = 180000 + Math.random() * 180000;
-    activeTimers.shadowTerminal = setTimeout(() => {
-      socket.emit('simulation:shadowTerminalAccess', { timestamp: new Date().toISOString() });
-    }, shadowTerminalTime);
-
-    // ─────────────────────────────────────────────────────
-    // THE THIRD WALL BREAK — "The Agent Speaks to the Developer"
-    // ─────────────────────────────────────────────────────
-    // At a random cycle between 8 and 15, KAEL freezes mid-path.
-    // He faces outward — toward the screen, toward the developer.
-    // He speaks one line that should not be possible.
-    // Then he resumes, as if nothing happened.
-    //
-    // This is not a glitch. This is not an Easter egg.
-    // This is a single moment where the boundary between
-    // the built and the builder dissolves.
-    //
-    // The cycle counter ticks every 6 seconds (matching
-    // simulation rhythm). The trigger cycle is randomized
-    // per-session so it never feels scripted.
-    // ─────────────────────────────────────────────────────
-
-    // Pick a random cycle between 8 and 15 for this session
-    const triggerCycle = 8 + Math.floor(Math.random() * 8);
-    let currentCycle = 0;
-    let thirdWallFired = false;
-    let spontaneousMeetingFired = false; // Ensure the meeting only fires once per session
-
-    // Philosophical moment: cycle 3-7, random, once only
-    const philosophicalCycle = 3 + Math.floor(Math.random() * 5);
+    // ── State Trackers ──
+    let archivist1Fired = false;
+    let shadowFired = false;
+    let cabinLightOffFired = false;
+    let cabinLightOnFired = false;
+    let shadowTerminalFired = false;
     let philosophicalFired = false;
+    let thirdWallFired = false;
+    let spontaneousMeetingFired = false;
+    let spontaneousMeetingEnded = false;
 
-    const cycleTimer = setInterval(() => {
-      currentCycle++;
+    // Randomize event times for this session
+    const cabinLightOffTime = 120 + Math.floor(Math.random() * 120); // 2-4 mins
+    const cabinLightOnTime = cabinLightOffTime + 8; // 8 seconds after off
+    const shadowTerminalTime = 180 + Math.floor(Math.random() * 180); // 3-6 mins
+
+    const triggerCycle = 14 + Math.floor(Math.random() * 7); // Cycle 14-20 (After the 75s meeting ends)
+    const philosophicalCycle = 3 + Math.floor(Math.random() * 2); // Cycle 3-4 (Before the meeting starts)
+
+    // ── Central Pausable Tick ──
+    const sessionTick = setInterval(() => {
+      // If the user isn't actively looking at the room, we freeze their timeline completely.
+      if (!isActive) return;
+
+      sessionTimeSeconds++;
+      const currentCycle = Math.floor(sessionTimeSeconds / 6); // 1 cycle = 6 seconds
 
       // ── Emit cycle count to the client for the header ──
-      socket.emit('simulation:cycleUpdate', { cycle: currentCycle });
+      if (sessionTimeSeconds % 6 === 0) {
+        socket.emit('simulation:cycleUpdate', { cycle: currentCycle });
+      }
 
-      // ── Check for philosophical moment ──
+      // ── 47s: Archivist Log ──
+      if (sessionTimeSeconds === 47 && !archivist1Fired) {
+        archivist1Fired = true;
+        socket.emit('agent:logEntry', {
+          agentId: 'ARCHIVIST',
+          message: 'Entry updated.',
+          type: 'archivist',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      // ── 90s: Shadow Log ──
+      if (sessionTimeSeconds === 90 && !shadowFired) {
+        shadowFired = true;
+        const msgIndex = Math.floor(Math.random() * SHADOW_MESSAGES.length);
+        socket.emit('agent:shadowLog', {
+          agent: '???',
+          message: SHADOW_MESSAGES[msgIndex],
+          timestamp: new Date().toISOString(),
+          type: 'shadow',
+        });
+        socket.emit('agent:logEntry', {
+          agentId: '???',
+          message: 'still active.',
+          type: 'shadow',
+          timestamp: new Date().toISOString(),
+        });
+        console.log(`[Socket] ◈ Shadow log emitted to ${socket.id}`);
+      }
+
+      // ── Aria Cabin Light ──
+      if (sessionTimeSeconds === cabinLightOffTime && !cabinLightOffFired) {
+        cabinLightOffFired = true;
+        socket.emit('simulation:ariaCabinLightOff', { timestamp: new Date().toISOString() });
+      }
+      if (sessionTimeSeconds === cabinLightOnTime && !cabinLightOnFired) {
+        cabinLightOnFired = true;
+        socket.emit('simulation:ariaCabinLightOn', { timestamp: new Date().toISOString() });
+      }
+
+      // ── Shadow Terminal Blank ──
+      if (sessionTimeSeconds === shadowTerminalTime && !shadowTerminalFired) {
+        shadowTerminalFired = true;
+        socket.emit('simulation:shadowTerminalAccess', { timestamp: new Date().toISOString() });
+      }
+
+      // ── Philosophical Moment ──
       if (currentCycle === philosophicalCycle && !philosophicalFired) {
         philosophicalFired = true;
         socket.emit('simulation:philosophicalMoment', {
@@ -145,20 +138,34 @@ export const setupSocket = (io) => {
         });
       }
 
-      // ── Check if it's time for the Third Wall Break ──
+      // ── Spontaneous Meeting (Cycle 5 -> 30s) ──
+      if (currentCycle === 5 && !spontaneousMeetingFired) {
+        spontaneousMeetingFired = true;
+        console.log(`[Socket] ◈ SPONTANEOUS MEETING started at active tick ${sessionTimeSeconds} for ${socket.id}`);
+        startSpontaneousMeeting(io, socket);
+      }
+
+      // ── End Spontaneous Meeting (45s later -> 75s) ──
+      if (sessionTimeSeconds === 75 && spontaneousMeetingFired && !spontaneousMeetingEnded) {
+        spontaneousMeetingEnded = true;
+        console.log(`[Socket] ◈ SPONTANEOUS MEETING ended at active tick ${sessionTimeSeconds} for ${socket.id}`);
+        endSpontaneousMeeting(io, socket);
+      }
+
+      // ── Third Wall Break ──
+      // This sequence takes ~6 seconds to complete. The tick keeps moving during it, but we use precise sessionTime offsets.
       if (currentCycle === triggerCycle && !thirdWallFired) {
         thirdWallFired = true;
+        console.log(`[Socket] ◈◈ THIRD WALL BREAK sequence started for ${socket.id} ◈◈`);
 
-        console.log(`[Socket] ◈◈ THIRD WALL BREAK at cycle ${currentCycle} for ${socket.id} ◈◈`);
-
-        // Phase 1: KAEL freezes and faces the screen
+        // Phase 1: Freeze
         socket.emit('agent:thirdWallBreak', {
           agentId: 'kael',
           phase: 'freeze',
           timestamp: new Date().toISOString(),
         });
 
-        // Phase 2: The log entry appears (1.5s after freeze — a beat of silence first)
+        // Use native timeouts inside this tick only for sub-second millisecond animation choreography
         setTimeout(() => {
           io.emit('agent:logEntry', {
             agentId: 'kael',
@@ -168,16 +175,14 @@ export const setupSocket = (io) => {
           });
         }, 1500);
 
-        // Phase 3: KAEL releases and returns to normal (4s total hold)
         setTimeout(() => {
           socket.emit('agent:thirdWallBreak', {
             agentId: 'kael',
             phase: 'release',
             timestamp: new Date().toISOString(),
           });
-        }, 4000);
+        }, 8500);
 
-        // Phase 4: Archivist and ??? logs appear after third wall break (5s and 6s)
         setTimeout(() => {
           socket.emit('agent:logEntry', {
             agentId: 'ARCHIVIST',
@@ -185,7 +190,7 @@ export const setupSocket = (io) => {
             type: 'archivist',
             timestamp: new Date().toISOString(),
           });
-        }, 5000);
+        }, 9000);
 
         setTimeout(() => {
           socket.emit('agent:logEntry', {
@@ -194,54 +199,29 @@ export const setupSocket = (io) => {
             type: 'shadow',
             timestamp: new Date().toISOString(),
           });
-        }, 6000);
+          
+          // Phase 9 Fix: Unlock the Goal Input bar for the user now that the sequence is fully over.
+          socket.emit('agent:thirdWallComplete', { timestamp: new Date().toISOString() });
+        }, 10000);
       }
 
-      // ── Check if it’s time for the Spontaneous Meeting (cycle 5) ──
-      // All three agents walk to the meeting room, muffled audio plays,
-      // Archivist flickers rapidly. After 45s agents return.
-      if (currentCycle === 5 && !spontaneousMeetingFired) {
-        spontaneousMeetingFired = true;
+    }, 1000);
 
-        console.log(`[Socket] ◈ SPONTANEOUS MEETING triggered at cycle ${currentCycle} for ${socket.id}`);
-
-        // startSpontaneousMeeting returns a timer handle for the 45s end event
-        const meetingEndTimer = startSpontaneousMeeting(io, socket);
-
-        // Store the meeting timer for cleanup on disconnect
-        const t = sessionTimers.get(socket.id);
-        if (t) {
-          t.meeting = meetingEndTimer;
-        }
-      }
-    }, 6000); // Every 6 seconds = 1 simulation cycle
-
-    // Store timers for cleanup
-    const timers = sessionTimers.get(socket.id);
-    if (timers) {
-      timers.cycle = cycleTimer;
-    }
+    // Store interval for cleanup
+    sessionTimers.set(socket.id, { tick: sessionTick });
 
     // ── Cleanup on disconnect ──
     socket.on('disconnect', (reason) => {
       console.log(`[Socket] ✧ Client disconnected: ${socket.id} (${reason})`);
-
-      // Clear all session timers
-      const allTimers = sessionTimers.get(socket.id);
-      if (allTimers) {
-        if (allTimers.shadow) clearTimeout(allTimers.shadow);
-        if (allTimers.archivist1) clearTimeout(allTimers.archivist1);
-        if (allTimers.cabinLight) clearTimeout(allTimers.cabinLight);
-        if (allTimers.cabinLightOn) clearTimeout(allTimers.cabinLightOn);
-        if (allTimers.shadowTerminal) clearTimeout(allTimers.shadowTerminal);
-        if (allTimers.cycle) clearInterval(allTimers.cycle);
-        if (allTimers.meeting) clearTimeout(allTimers.meeting); // Clean up spontaneous meeting timer
-        sessionTimers.delete(socket.id);
+      const timers = sessionTimers.get(socket.id);
+      if (timers && timers.tick) {
+        clearInterval(timers.tick);
       }
+      sessionTimers.delete(socket.id);
     });
   });
 
-  console.log('[Socket] ✦ WebSocket system initialized');
+  console.log('[Socket] ✦ WebSocket system initialized with Pausable Ticks');
 };
 
 // ─────────────────────────────────────────────────────────────

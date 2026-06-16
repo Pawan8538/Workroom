@@ -65,16 +65,20 @@ const SpeechBubbleProjector = ({ agents, bubbleCoords, meetingPositionsRef, isMe
 // ── Camera zoom animator — runs inside Canvas so it has access to the camera ──
 const CameraZoomAnimator = ({ freezeZoomRef, isMeetingActive, showArchitect, meetingStartedAt, controlsRef, cameraPreset }) => {
   const { camera } = useThree();
+  const preset2Arrived = useRef(false);
+
+  useEffect(() => {
+    preset2Arrived.current = false;
+  }, [cameraPreset]);
 
   const presets = useMemo(() => ({
-    1: { pos: new Vector3(20, 18, 24), target: new Vector3(-1, 0, -1) },
-    2: { pos: new Vector3(15, 15, 15), target: new Vector3(0, 0, 0) },
-    3: { pos: new Vector3(28, 22, 10), target: new Vector3(-2, 0, -3) },
-    4: { pos: new Vector3(14, 20, 26), target: new Vector3(2, 0, 0) },
+    1: { pos: new Vector3(15, 15, 15), target: new Vector3(0, 0, 0) },   // default
+    2: { pos: new Vector3(22, 15, 5), target: new Vector3(0, 2, 0) },    // evolution wall (rotated right to look left, target stays centered!)
+    // 3 is 360 free camera, handled dynamically
   }), []);
 
   useFrame((state, delta) => {
-    if (cameraPreset === 5) return;
+    if (cameraPreset === 3) return;
 
     const targetZoom = freezeZoomRef.current ? 55 : 38;
     // Lerp speed: covers the full range in ~2s (factor ~0.5 per second)
@@ -120,6 +124,16 @@ const CameraZoomAnimator = ({ freezeZoomRef, isMeetingActive, showArchitect, mee
       targetLook = new Vector3(0, 0, 0);
     }
 
+    // If preset 2 has arrived at the wall, set ref and stop lerping so OrbitControls can rotate without spring-back
+    if (cameraPreset === 2) {
+      if (!preset2Arrived.current && camera.position.distanceTo(targetPos) < 0.5) {
+        preset2Arrived.current = true;
+      }
+      if (preset2Arrived.current) {
+        return;
+      }
+    }
+
     const lerpSpeed = isMeetingActive ? 0.02 : 0.025;
     camera.position.lerp(targetPos, lerpSpeed);
 
@@ -134,7 +148,16 @@ const CameraZoomAnimator = ({ freezeZoomRef, isMeetingActive, showArchitect, mee
   return null;
 };
 
-const OfficeCanvas = ({ agents: socketAgents = [], logs = [], thirdWallAgent = null, isMeetingActive = false, meetingStartedAt = null, ariaTaskAssignedAt = null, fourthWallAt = null, philosophicalAt = null, philosophicalText = null, terminalContent = null, soundEngine = null, architectOutcome = 'none', observerPCFlickering = false, onObserverPCClick, onPaperClick, showTerminal = false, onTerminalClose, socketAriaCabinLightOff = false, shadowTerminalAccess = false, showArchitect = false, architectFigureVisible = false, architectIsSeated = false, onArchitectArrivedAtDesk, onArchitectClose, cycle, isMusicPlaying = false, setIsMusicPlaying, musicPaused = false, setMusicPaused, isFourthWallTriggered = false }) => {
+const OfficeCanvas = ({ 
+  agents: socketAgents = [], logs = [], thirdWallAgent = null, isMeetingActive = false, 
+  meetingStartedAt = null, ariaTaskAssignedAt = null, fourthWallAt = null, philosophicalAt = null, 
+  philosophicalText = null, terminalContent = null, soundEngine = null, architectOutcome = 'none', 
+  observerPCFlickering = false, onObserverPCClick, onPaperClick, showTerminal = false, 
+  onTerminalClose, socketAriaCabinLightOff = false, shadowTerminalAccess = false, 
+  showArchitect = false, architectFigureVisible = false, architectIsSeated = false, 
+  onArchitectArrivedAtDesk, onArchitectClose, chapter2Approved, cycle, isMusicPlaying = false, 
+  setIsMusicPlaying, musicPaused = false, setMusicPaused, isFourthWallTriggered = false
+}) => {
   const [selectedAgent, setSelectedAgent] = useState(null);
   const controlsRef = useRef();
   const freezeZoomRef = useRef(false);
@@ -146,7 +169,7 @@ const OfficeCanvas = ({ agents: socketAgents = [], logs = [], thirdWallAgent = n
 
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (['1', '2', '3', '4', '5'].includes(e.key)) {
+      if (['1', '2', '3'].includes(e.key)) {
         setCameraPreset(parseInt(e.key, 10));
       }
     };
@@ -615,10 +638,14 @@ const OfficeCanvas = ({ agents: socketAgents = [], logs = [], thirdWallAgent = n
         <CameraZoomAnimator freezeZoomRef={freezeZoomRef} isMeetingActive={isMeetingActive} showArchitect={showArchitect} meetingStartedAt={meetingStartedAt} controlsRef={controlsRef} cameraPreset={cameraPreset} />
         <OrbitControls
           ref={controlsRef}
-          enableRotate={cameraPreset === 5}
-          enablePan={cameraPreset === 5}
-          enableZoom={cameraPreset === 5}
-          target={[0, 0, 0]}
+          enableRotate={cameraPreset === 2 || cameraPreset === 3}
+          enablePan={cameraPreset === 3}
+          enableZoom={cameraPreset === 3}
+          target={[0, 2, 0]}
+          minAzimuthAngle={cameraPreset === 2 ? 0.89 : -Infinity}
+          maxAzimuthAngle={cameraPreset === 2 ? 1.75 : Infinity}
+          minPolarAngle={cameraPreset === 2 ? 0.57 : 0}
+          maxPolarAngle={cameraPreset === 2 ? 1.43 : Math.PI}
           makeDefault
         />
 
@@ -732,6 +759,7 @@ const OfficeCanvas = ({ agents: socketAgents = [], logs = [], thirdWallAgent = n
             isMeetingActive={isMeetingActive}
             onDismiss={handleInternDismiss}
             onSpeakerClick={handleSpeakerClick}
+            archivistDoorOpen={archivistDoorOpen}
           />
         </group>
 

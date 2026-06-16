@@ -299,43 +299,43 @@ export const startSpontaneousMeeting = (io, socket) => {
     type: 'info',
     timestamp: new Date().toISOString(),
   });
+};
 
-  // ── After 45 seconds, end the meeting ──
-  const meetingEndTimer = setTimeout(() => {
-    console.log(`[AgentEvent] ◈ SPONTANEOUS MEETING ended for ${socket.id}`);
+export const endSpontaneousMeeting = (io, socket) => {
+  const agentIds = ['aria', 'kael', 'zeno'];
+  const agentNames = ['ARIA', 'KAEL', 'ZENO'];
 
-    // Return all agents to idle state and their home desks
-    agentIds.forEach((agentId) => {
-      const deskPos = DESK_POSITIONS[agentId] || { x: 0, y: 0 };
+  console.log(`[AgentEvent] ◈ SPONTANEOUS MEETING ended for ${socket.id}`);
 
-      io.emit('agent:stateChanged', {
-        agentId,
-        state: 'idle',
-        detail: null,
-        timestamp: new Date().toISOString(),
-      });
+  // Return all agents to idle state and their home desks
+  agentIds.forEach((agentId) => {
+    const deskPos = DESK_POSITIONS[agentId] || { x: 0, y: 0 };
 
-      io.emit('agent:positionUpdate', {
-        agentId,
-        position: deskPos,
-        timestamp: new Date().toISOString(),
-      });
-    });
-
-    // ── Emit the simulation-level meeting-ended event ──
-    io.emit('simulation:meetingEnded', {
-      agents: agentNames,
+    io.emit('agent:stateChanged', {
+      agentId,
+      state: 'idle',
+      detail: null,
       timestamp: new Date().toISOString(),
     });
 
-    // ── Post-meeting log: ARIA's response per masterplan ──
-    io.emit('agent:logEntry', {
-      agentId: 'aria',
-      message: 'Noted. Continuing as planned.',
-      type: 'info',
+    io.emit('agent:positionUpdate', {
+      agentId,
+      position: deskPos,
       timestamp: new Date().toISOString(),
     });
-  }, SPONTANEOUS_MEETING_DURATION);
+  });
 
-  return meetingEndTimer;
+  // ── Emit the simulation-level meeting-ended event ──
+  io.emit('simulation:meetingEnded', {
+    agents: agentNames,
+    timestamp: new Date().toISOString(),
+  });
+
+  // ── Post-meeting log: ARIA's response per masterplan ──
+  io.emit('agent:logEntry', {
+    agentId: 'aria',
+    message: 'Noted. Continuing as planned.',
+    type: 'info',
+    timestamp: new Date().toISOString(),
+  });
 };

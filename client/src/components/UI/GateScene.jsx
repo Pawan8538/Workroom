@@ -74,7 +74,9 @@ const GateScene = ({ onComplete }) => {
         {/* ── The Door Itself ── */}
         {/* Hovering the handle creaks the door open by 5 degrees very slowly. */}
         {/* Clicking it triggers the complete 95-degree open animation. */}
-        <div style={{
+        <div 
+          onClick={handleOpen}
+          style={{
           width: '100%',
           height: '100%',
           background: '#0a0805', // Very dark wood color
@@ -83,6 +85,7 @@ const GateScene = ({ onComplete }) => {
           top: 0,
           left: 0,
           transformOrigin: 'left',
+          cursor: 'pointer',
           transition: isOpen 
             ? 'transform 1.5s cubic-bezier(0.4, 0, 0.2, 1)' 
             : 'transform 4.0s cubic-bezier(0.1, 0.9, 0.2, 1)', // Slow creak when hovered
@@ -105,15 +108,13 @@ const GateScene = ({ onComplete }) => {
 
           {/* ── Metal Handle Wrapper to prevent hover flickering during door rotation ── */}
           <div
-            onClick={handleOpen}
             style={{
               padding: '10px 20px', // Extra hitbox padding to keep mouse hover stable
               marginRight: '5px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              zIndex: 10,
-              cursor: 'pointer'
+              zIndex: 10
             }}
           >
             {/* The physical metal handle */}
