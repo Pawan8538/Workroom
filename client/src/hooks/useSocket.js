@@ -15,7 +15,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { io } from 'socket.io-client';
 
 // ── Server URL (Express on port 5000) ──
-const SERVER_URL = 'http://localhost:5000';
+const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:5000';
 
 // ── Max log entries kept in memory to prevent unbounded growth ──
 const MAX_LOGS = 200;
@@ -148,7 +148,9 @@ export const useSocket = () => {
       const { agentId, state, detail, timestamp } = data;
 
       console.log('[Socket] Agent state changed:', agentId, state);
-      updateAgent(agentId, { status: state });
+      const patch = { status: state };
+      if (state === 'idle') patch.task = null;
+      updateAgent(agentId, patch);
 
       pushLog({
         agentId,

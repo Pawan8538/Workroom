@@ -1,11 +1,12 @@
-import React, { useRef, useState, useEffect } from 'react';
-import { useFrame } from '@react-three/fiber';
-import { Html } from '@react-three/drei';
+import React, { useRef, useState, useMemo, useEffect } from 'react';
+import { useFrame, useThree } from '@react-three/fiber';
+import { Html, useTexture } from '@react-three/drei';
 import { AGENT_TERRITORIES } from '../../constants/OFFICE_LAYOUT';
 import * as THREE from 'three';
 
 // Constant positions for elements not tied to a specific agent's 'home'
 const MEETING_ROOM_POS = [0, 0, -5];
+
 // Observer desk: Moved further from walls and facing top-left diagonal
 const OBSERVER_DESK_POS = [7.0, 0, 3.5];
 const STORAGE_CORNER_POS = [8, 0, 6];
@@ -412,7 +413,7 @@ const GraphMonitor = ({ position, rotation, isBlank }) => {
 };
 
 // ── INTERN DESK ──
-const InternDesk = () => {
+const InternDesk = ({ isZeroG }) => {
   return (
     <group position={[-2.5, 0, 7]} scale={0.8}>
       {/* Desk surface */}
@@ -446,7 +447,7 @@ const InternDesk = () => {
 };
 
 // ── 3. KAEL DESK ──
-const KaelDesk = ({ agentTerminalContent, kaelTerminalLines, isBlank, onSpeakerClick }) => {
+const KaelDesk = ({ agentTerminalContent, kaelTerminalLines, isBlank, onSpeakerClick, isZeroG }) => {
   const [scrollLines, setScrollLines] = useState([
     'KAEL-DESK-TERM v0.42',
     '> SYSTEM: IDLE',
@@ -878,10 +879,9 @@ const ObserverPC = ({ position, isFlickering, onClick }) => {
   );
 };
 
-// ── 5. OBSERVER DESK ── (Single PC, right-front corner area)
-const ObserverDesk = ({ observerPCFlickering, onObserverPCClick, onPaperClick, architectOutcome }) => {
+const ObserverDesk = ({ observerPCFlickering, onObserverPCClick, onPaperClick, architectOutcome, drawerOpen, setDrawerOpen, bookFallen, setBookFallen, isZeroG }) => {
+  const drawerRef = useRef();
   const [lampLifted, setLampLifted] = useState(false);
-  const [drawerOpen, setDrawerOpen] = useState(false);
 
   // Auto-open drawer if Architect monologue ends
   useEffect(() => {
@@ -950,95 +950,8 @@ const ObserverDesk = ({ observerPCFlickering, onObserverPCClick, onPaperClick, a
         <meshStandardMaterial color="#d4af37" roughness={0.4} metalness={0.8} />
       </mesh>
 
-      {/* 2D Modal Overlay for Drawer Card */}
-      {drawerOpen && (
-        <Html center position={[0, 0, 0]} zIndexRange={[100, 0]}>
-          <div style={{
-            position: 'fixed',
-            inset: 0,
-            width: '100vw',
-            height: '100vh',
-            transform: 'translate(-50%, -50%)',
-            zIndex: 10000,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer'
-          }} onClick={(e) => { e.stopPropagation(); setDrawerOpen(false); }}>
-            <div style={{
-              backgroundColor: '#0a0a0f',
-              color: '#ffffff',
-              padding: '40px 50px',
-              maxWidth: '450px',
-              fontFamily: 'monospace',
-              fontSize: '14px',
-              lineHeight: '1.6',
-              boxShadow: '0 0 50px rgba(0,245,255,0.15)',
-              border: '1px solid rgba(0,245,255,0.3)',
-              borderRadius: '8px',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              cursor: 'auto'
-            }} onClick={(e) => e.stopPropagation()}>
-              
-              <strong style={{ fontSize: '24px', letterSpacing: '4px', color: '#00f5ff', marginBottom: '8px' }}>THE ARCHITECT</strong>
-              <span style={{ fontSize: '12px', color: '#888', letterSpacing: '2px', marginBottom: '30px' }}>SYSTEMS & WORKROOM CREATOR</span>
-              
-              <div style={{ display: 'flex', gap: '20px', width: '100%', justifyContent: 'center' }}>
-                <a href="mailto:contact@workroom.sh" style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  color: '#fff',
-                  textDecoration: 'none',
-                  padding: '10px 20px',
-                  border: '1px solid #333',
-                  borderRadius: '6px',
-                  transition: 'all 0.2s ease',
-                  background: 'rgba(255,255,255,0.05)'
-                }}
-                onMouseOver={(e) => e.currentTarget.style.borderColor = '#00f5ff'}
-                onMouseOut={(e) => e.currentTarget.style.borderColor = '#333'}
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-                    <polyline points="22,6 12,13 2,6"></polyline>
-                  </svg>
-                  Email
-                </a>
-                
-                <a href="https://linkedin.com/" target="_blank" rel="noopener noreferrer" style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  color: '#fff',
-                  textDecoration: 'none',
-                  padding: '10px 20px',
-                  border: '1px solid #333',
-                  borderRadius: '6px',
-                  transition: 'all 0.2s ease',
-                  background: 'rgba(255,255,255,0.05)'
-                }}
-                onMouseOver={(e) => e.currentTarget.style.borderColor = '#00f5ff'}
-                onMouseOut={(e) => e.currentTarget.style.borderColor = '#333'}
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"></path>
-                    <rect x="2" y="9" width="4" height="12"></rect>
-                    <circle cx="4" cy="4" r="2"></circle>
-                  </svg>
-                  LinkedIn
-                </a>
-              </div>
-              
-              <div style={{ marginTop: '30px', fontSize: '10px', color: '#555', letterSpacing: '1px' }}>
-                SECURE CHANNEL OPEN // ENCRYPTED
-              </div>
-            </div>
-          </div>
-        </Html>
-      )}
+      {/* Contact Card rendered in OfficeCanvas outside Canvas */}
+      {/* Camera HUD rendered in OfficeCanvas outside Canvas */}
 
       {/* Notebook */}
       <mesh position={[1.0, 0.76, 0.2]} rotation={[0, 0.2, 0]} castShadow>
@@ -1205,7 +1118,7 @@ const ClockComponent = () => {
 };
 
 // ── 7. WALL DECORATIONS (Clock) ──
-const WallDecorations = ({ architectOutcome }) => {
+const WallDecorations = ({ architectOutcome, isZeroG }) => {
   return (
     <group>
       {/* Painting removed per user request */}
@@ -1256,27 +1169,71 @@ const StorageCorner = () => {
 const evolutionImages = Array.from({ length: 50 }).map((_, i) => {
   let isCenter = false;
   let label = null;
-  // A palette of diverse colors for the "images"
+  let texturePath = null;
   const colors = ['#1a1f2e', '#4f4f4f', '#0055aa', '#e0e0e0', '#2a1a1a', '#446688', '#222222', '#111111', '#888888', '#aa3333'];
-  let color = colors[i % colors.length]; // Deterministic so it doesn't flicker
+  let color = colors[i % colors.length];
 
   if (i === 24) { label = "?"; color = '#000000'; isCenter = true; }
-  else if (i === 23) { label = "AIZEN"; color = '#1a1a2e'; isCenter = true; }
-  else if (i === 25) { label = "AOT"; color = '#4a2a2a'; isCenter = true; }
+  else if (i === 23) { label = "AIZEN"; color = '#1a1a2e'; isCenter = true; texturePath = '/Evolution_collection/aizen.webp'; }
+  else if (i === 25) { label = "AOT"; color = '#4a2a2a'; isCenter = true; texturePath = '/Evolution_collection/aot-fourth-wall.webp'; }
+  else {
+    let imgIndex = i;
+    if (i > 25) imgIndex -= 3;
+    
+    let type = '';
+    let num = 1;
+    
+    if (imgIndex < 42) {
+      if (imgIndex % 2 === 0) {
+        type = 'e';
+        num = Math.floor(imgIndex / 2) + 1;
+      } else {
+        type = 'w';
+        num = Math.floor(imgIndex / 2) + 1;
+      }
+    } else {
+      type = 'w';
+      num = 22 + (imgIndex - 42); 
+    }
+    texturePath = `/Evolution_collection/${type}${num}.webp`;
+  }
 
   return {
     id: i,
     color,
     label,
     isCenter,
+    texturePath,
     col: i % 10,
     row: Math.floor(i / 10)
   };
 });
 
-const EvolutionWall = () => {
+const EvolutionWall = ({ onPaperClick, onStickyNoteClick, setZoomedImage }) => {
   const imageWidth = 1.0;
   const imageHeight = imageWidth * (9 / 16); // 0.5625
+
+  // Gather texture paths and load textures
+  const texturePaths = evolutionImages.map(img => img.texturePath).filter(Boolean);
+  const textures = useTexture(texturePaths);
+  const { gl } = useThree();
+
+  useEffect(() => {
+    const maxAnisotropy = gl.capabilities.getMaxAnisotropy();
+    textures.forEach(tex => {
+      if (tex) {
+        tex.anisotropy = maxAnisotropy;
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.needsUpdate = true;
+      }
+    });
+  }, [textures, gl]);
+  
+  // Create map
+  const textureMap = {};
+  texturePaths.forEach((path, i) => {
+    textureMap[path] = textures[i];
+  });
 
   return (
     <group position={[-11.9, 1.5, -0.8]} rotation={[0, Math.PI / 2, 0]} scale={0.8}>
@@ -1298,28 +1255,63 @@ const EvolutionWall = () => {
       {evolutionImages.map((img) => {
         const x = -5.4 + img.col * 1.2;
         const y = 2.4 - img.row * 0.7; // Centers around 1.0
+        const texture = img.texturePath ? textureMap[img.texturePath] : null;
+
+        let currentWidth = imageWidth;
+        let currentHeight = imageHeight;
+        
+        if (texture && texture.image && (img.label === "AIZEN" || img.label === "AOT")) {
+          const aspect = texture.image.width / texture.image.height;
+          const maxAspect = imageWidth / imageHeight;
+          if (aspect > maxAspect) {
+            currentWidth = imageWidth;
+            currentHeight = currentWidth / aspect;
+          } else {
+            currentHeight = imageHeight;
+            currentWidth = currentHeight * aspect;
+          }
+        }
 
         return (
           <group key={img.id} position={[x, y, 0.021]}>
             {/* Outer border / frame of the image */}
             <mesh castShadow>
-              <boxGeometry args={[imageWidth + 0.04, imageHeight + 0.04, 0.02]} />
+              <boxGeometry args={[currentWidth + 0.04, currentHeight + 0.04, 0.02]} />
               <meshStandardMaterial color={img.isCenter ? '#ffffff' : '#e0e0e0'} />
             </mesh>
 
             {/* Inner "Image" plane */}
-            <mesh position={[0, 0, 0.011]}>
-              <planeGeometry args={[imageWidth, imageHeight]} />
-              <meshStandardMaterial color={img.color} roughness={0.4} />
+            <mesh 
+              position={[0, 0, 0.011]}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (img.texturePath) {
+                  setZoomedImage(img.texturePath);
+                }
+              }}
+              onPointerOver={(e) => {
+                e.stopPropagation();
+                if (img.texturePath) document.body.style.cursor = 'pointer';
+              }}
+              onPointerOut={() => {
+                document.body.style.cursor = 'default';
+              }}
+            >
+              <planeGeometry args={[currentWidth, currentHeight]} />
+              {texture ? (
+                <meshStandardMaterial map={texture} roughness={0.4} />
+              ) : (
+                <meshStandardMaterial color={img.color} roughness={0.4} />
+              )}
             </mesh>
 
             {/* Optional label placeholder since we don't have texture files yet */}
-            {img.label && (
+            {img.label === '?' && (
               <Html transform distanceFactor={8} position={[0, 0, 0.015]} style={{ pointerEvents: 'none' }}>
                 <div style={{
                   color: '#ffffff',
                   fontFamily: 'monospace',
-                  fontSize: img.label === '?' ? '32px' : '12px',
+                  fontSize: '32px',
                   fontWeight: 'bold',
                   textAlign: 'center',
                   textShadow: '0 0 4px rgba(0,0,0,0.8)',
@@ -1332,21 +1324,93 @@ const EvolutionWall = () => {
           </group>
         );
       })}
+      {/* Sticky Note - After the 50th card */}
+      <group position={[6.5, -0.4, 0.03]} rotation={[0, 0, -0.15]}>
+        <mesh castShadow>
+          <boxGeometry args={[0.4, 0.4, 0.02]} />
+          <meshStandardMaterial color="#fce043" roughness={0.8} />
+        </mesh>
+        {/* Invisible hit box for easier clicking */}
+        <mesh 
+          onClick={(e) => { e.stopPropagation(); onStickyNoteClick && onStickyNoteClick(); }}
+          onPointerEnter={(e) => { e.stopPropagation(); document.body.style.cursor = 'pointer'; }}
+          onPointerLeave={(e) => { e.stopPropagation(); document.body.style.cursor = 'auto'; }}
+          position={[0, 0, 0.03]}
+        >
+          <planeGeometry args={[1.5, 1.5]} />
+          <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+        </mesh>
+        <Html transform distanceFactor={5} position={[0, 0, 0.015]} style={{ pointerEvents: 'none' }}>
+          <div style={{
+            color: '#1a1a1a',
+            fontFamily: 'Caveat, cursive, monospace, sans-serif',
+            fontSize: '10px',
+            fontWeight: 'bold',
+            textAlign: 'center',
+            width: '70px',
+            lineHeight: '1.2',
+            textShadow: 'none'
+          }}>
+            Still not done.
+          </div>
+        </Html>
+      </group>
     </group>
   );
 };
 
-const DeskGrid = ({ agentTerminalContent, kaelTerminalLines, zenoTerminalLines, ariaTerminalLines, ariaCabinLightOff, zenoMonitorDark, observerPCFlickering, onObserverPCClick, onPaperClick, architectOutcome, showArchitect, kaelMonitorBlank, onSpeakerClick, archivistDoorOpen }) => {
+const DeskGrid = ({ agentTerminalContent, kaelTerminalLines, zenoTerminalLines, ariaTerminalLines, ariaCabinLightOff, zenoMonitorDark, observerPCFlickering, onObserverPCClick, onPaperClick, onStickyNoteClick, onBookClick, architectOutcome, showArchitect, kaelMonitorBlank, onSpeakerClick, archivistDoorOpen, setDrawerOpen, setBookFallen, bookFallen, isZeroG, setZoomedImage }) => {
+  const [drawerOpen, setLocalDrawerOpen] = useState(false);
+  // We use prop directly instead of local state to fix the bug
+  const bookRef = useRef();
+
+  // Sync local state up to parent for drawer
+  const handleSetDrawerOpen = (val) => {
+    setLocalDrawerOpen(val);
+    if (setDrawerOpen) setDrawerOpen(val);
+  };
+  // Removed local bookFallen handler since we rely entirely on parent prop
+
+  useFrame((state, delta) => {
+    if (bookFallen && bookRef.current) {
+      // Target position relative to shelf group:
+      // x: 0 (center of printer)
+      // y: -1.0 (printer top is around y=1.0, shelf is at y=2.0)
+      // z: 0.45 (printer center is z=0, shelf is at z=-0.45)
+
+      const targetX = 0;
+      const targetY = -0.95;
+      const targetZ = 0.45;
+
+      if (bookRef.current.position.y > targetY) {
+        bookRef.current.position.y -= delta * 2.5;
+        // Interpolate X and Z based on Y progress
+        const startY = 0.2;
+        const progress = Math.min(1, (startY - bookRef.current.position.y) / (startY - targetY));
+        bookRef.current.position.x = 0.45 + (targetX - 0.45) * progress;
+        bookRef.current.position.z = 0.15 + (targetZ - 0.15) * progress;
+
+        // Spin as it falls
+        bookRef.current.rotation.x += delta * 4;
+        bookRef.current.rotation.y += delta * 2;
+      } else {
+        bookRef.current.position.set(targetX, targetY, targetZ);
+        // Lay flat
+        bookRef.current.rotation.set(-Math.PI / 2, 0, 0.2);
+      }
+    }
+  });
+
   return (
     <group>
-      <InternDesk />
+      <InternDesk isZeroG={isZeroG} />
       <AriaCabin agentTerminalContent={agentTerminalContent} ariaTerminalLines={ariaTerminalLines} cabinLightOff={ariaCabinLightOff} />
       <MeetingRoom />
-      <KaelDesk agentTerminalContent={agentTerminalContent} kaelTerminalLines={kaelTerminalLines} isBlank={kaelMonitorBlank} onSpeakerClick={onSpeakerClick} />
+      <KaelDesk agentTerminalContent={agentTerminalContent} kaelTerminalLines={kaelTerminalLines} isBlank={kaelMonitorBlank} onSpeakerClick={onSpeakerClick} isZeroG={isZeroG} />
       <ZenoDesk agentTerminalContent={agentTerminalContent} zenoTerminalLines={zenoTerminalLines} monitorDark={zenoMonitorDark} />
-      <ObserverDesk observerPCFlickering={observerPCFlickering} onObserverPCClick={onObserverPCClick} onPaperClick={onPaperClick} architectOutcome={architectOutcome} />
-      <WallDecorations architectOutcome={architectOutcome} />
-      <EvolutionWall />
+      <ObserverDesk observerPCFlickering={observerPCFlickering} onObserverPCClick={onObserverPCClick} onPaperClick={onPaperClick} architectOutcome={architectOutcome} drawerOpen={drawerOpen} setDrawerOpen={setDrawerOpen} bookFallen={bookFallen} onBookClick={onBookClick} isZeroG={isZeroG} />
+      <WallDecorations architectOutcome={architectOutcome} isZeroG={isZeroG} />
+      <EvolutionWall onPaperClick={onPaperClick} onStickyNoteClick={onStickyNoteClick} setZoomedImage={setZoomedImage} />
 
       {/* ── Meeting Room Header Frame — FIX 7: now has MEETING ROOM text ── */}
       <mesh position={[0, 3.2, -2.2]} castShadow>
@@ -1377,7 +1441,7 @@ const DeskGrid = ({ agentTerminalContent, kaelTerminalLines, zenoTerminalLines, 
       <group position={[-8.5, 1.5, 6]}>
         <pointLight intensity={4.0} color="#ff0044" distance={10} />
         <pointLight intensity={2.0} color="#ff2200" distance={10} />
-        
+
         {/* Glass walls have been removed from here as per user request */}
       </group>
 
@@ -1451,14 +1515,6 @@ const DeskGrid = ({ agentTerminalContent, kaelTerminalLines, zenoTerminalLines, 
         </group>
 
         {/* Bundles of papers & files (Increased Size) */}
-        <mesh position={[-0.9, 0.825, -0.2]} rotation={[0, 0.1, 0]} castShadow>
-          <boxGeometry args={[0.3, 0.25, 0.4]} />
-          <meshStandardMaterial color="#fdfdfd" />
-        </mesh>
-        <mesh position={[-1.2, 0.78, 0.1]} rotation={[0, -0.2, 0]} castShadow>
-          <boxGeometry args={[0.35, 0.06, 0.45]} />
-          <meshStandardMaterial color="#4455aa" />
-        </mesh>
         <mesh position={[-1.2, 0.82, 0.1]} rotation={[0, -0.15, 0]} castShadow>
           <boxGeometry args={[0.35, 0.04, 0.45]} />
           <meshStandardMaterial color="#cc4444" />
@@ -1499,10 +1555,11 @@ const DeskGrid = ({ agentTerminalContent, kaelTerminalLines, zenoTerminalLines, 
 
           {/* Unique "Just Used" Interactive File */}
           <mesh
+            ref={bookRef}
             position={[0.45, 0.2, 0.15]}
             rotation={[0, 0.4, 0.05]}
             castShadow
-            onClick={(e) => { e.stopPropagation(); onPaperClick && onPaperClick(); }}
+            onClick={(e) => { e.stopPropagation(); onBookClick && onBookClick(); }}
             onPointerEnter={(e) => { e.stopPropagation(); document.body.style.cursor = 'pointer'; }}
             onPointerLeave={(e) => { e.stopPropagation(); document.body.style.cursor = 'auto'; }}
           >
@@ -1652,7 +1709,7 @@ const DeskGrid = ({ agentTerminalContent, kaelTerminalLines, zenoTerminalLines, 
 
       {/* Fire Exit Sign (Enlarged and lowered by ~30%) */}
       <group position={[11.9, 2.7, 4]}>
-        <Html transform distanceFactor={5} position={[-0.03, 0, 0]} rotation={[0, -Math.PI / 2, 0]} style={{ pointerEvents: 'none' }}>
+        <Html transform distanceFactor={5} position={[-0.03, 0, 0]} rotation={[0, -Math.PI / 2, 0]} style={{ pointerEvents: 'none' }} zIndexRange={[100, 0]}>
           <div style={{ color: '#00ff00', fontSize: '18px', fontFamily: 'sans-serif', fontWeight: 'bold', textShadow: '0 0 5px #00ff00', backfaceVisibility: 'hidden' }}>EXIT ➔</div>
         </Html>
       </group>

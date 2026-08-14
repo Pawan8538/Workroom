@@ -12,13 +12,19 @@ export function useSoundEngine() {
       ambientHum: null,
       keyboardLoop: null,
       meetingMuffled: null,
-      clockTick: null
+      clockTick: null,
+      flicker: null,
+      terminalTyping: null,
+      orchestration: null
     },
     // Store source nodes
     sources: {
       ambientHum: null,
       keyboardLoop: null,
-      meetingMuffled: null
+      meetingMuffled: null,
+      clockTick: null,
+      flicker: null,
+      terminalTyping: null
     },
     // Track intervals
     clockInterval: null,
@@ -39,20 +45,40 @@ export function useSoundEngine() {
 
       // Create gain nodes for each type of sound
       soundsRef.current.gains.ambientHum = ctx.createGain();
-      soundsRef.current.gains.ambientHum.gain.setValueAtTime(0.3, ctx.currentTime);
+      soundsRef.current.gains.ambientHum.gain.setValueAtTime(0.15, ctx.currentTime);
       soundsRef.current.gains.ambientHum.connect(ctx.destination);
 
       soundsRef.current.gains.keyboardLoop = ctx.createGain();
-      soundsRef.current.gains.keyboardLoop.gain.setValueAtTime(0.15, ctx.currentTime);
+      soundsRef.current.gains.keyboardLoop.gain.setValueAtTime(0.75, ctx.currentTime);
       soundsRef.current.gains.keyboardLoop.connect(ctx.destination);
 
       soundsRef.current.gains.meetingMuffled = ctx.createGain();
-      soundsRef.current.gains.meetingMuffled.gain.setValueAtTime(0.15, ctx.currentTime);
+      soundsRef.current.gains.meetingMuffled.gain.setValueAtTime(0.45, ctx.currentTime);
       soundsRef.current.gains.meetingMuffled.connect(ctx.destination);
 
+      soundsRef.current.gains.meetingLaughter = ctx.createGain();
+      soundsRef.current.gains.meetingLaughter.gain.setValueAtTime(0.35, ctx.currentTime);
+      soundsRef.current.gains.meetingLaughter.connect(ctx.destination);
+
       soundsRef.current.gains.clockTick = ctx.createGain();
-      soundsRef.current.gains.clockTick.gain.setValueAtTime(0.4, ctx.currentTime);
+      soundsRef.current.gains.clockTick.gain.setValueAtTime(0.05, ctx.currentTime);
       soundsRef.current.gains.clockTick.connect(ctx.destination);
+
+      soundsRef.current.gains.monitorFlicker = ctx.createGain();
+      soundsRef.current.gains.monitorFlicker.gain.setValueAtTime(0.2, ctx.currentTime);
+      soundsRef.current.gains.monitorFlicker.connect(ctx.destination);
+
+      soundsRef.current.gains.flicker = ctx.createGain();
+      soundsRef.current.gains.flicker.gain.setValueAtTime(0.3, ctx.currentTime);
+      soundsRef.current.gains.flicker.connect(ctx.destination);
+
+      soundsRef.current.gains.terminalTyping = ctx.createGain();
+      soundsRef.current.gains.terminalTyping.gain.setValueAtTime(0.4, ctx.currentTime);
+      soundsRef.current.gains.terminalTyping.connect(ctx.destination);
+
+      soundsRef.current.gains.orchestration = ctx.createGain();
+      soundsRef.current.gains.orchestration.gain.setValueAtTime(0.5, ctx.currentTime);
+      soundsRef.current.gains.orchestration.connect(ctx.destination);
 
       console.log('[SoundEngine] AudioContext and GainNodes initialized.');
     } catch (e) {
@@ -63,7 +89,7 @@ export function useSoundEngine() {
   const unlockAudioContext = async () => {
     initAudio();
     const ctx = audioCtxRef.current;
-    if (ctx && ctx.state === 'suspended') {
+    if (ctx && ctx.state === 'suspended' && !document.hidden) {
       try {
         await ctx.resume();
         console.log('[SoundEngine] AudioContext resumed successfully.');
@@ -100,8 +126,12 @@ export function useSoundEngine() {
     }
   };
 
+  const ambientHumPlayIntent = useRef(false);
+
   const playAmbientHum = () => {
+    ambientHumPlayIntent.current = true;
     unlockAudioContext().then(() => {
+      if (!ambientHumPlayIntent.current) return;
       const audio = setupLoop('ambientHum', SOUNDS.ambientHum, soundsRef.current.gains.ambientHum);
       if (audio) {
         audio.play().catch(err => {
@@ -112,6 +142,7 @@ export function useSoundEngine() {
   };
 
   const stopAmbientHum = () => {
+    ambientHumPlayIntent.current = false;
     const audio = soundsRef.current.ambientHum;
     if (audio) {
       audio.pause();
@@ -119,8 +150,12 @@ export function useSoundEngine() {
     }
   };
 
+  const keyboardPlayIntent = useRef(false);
+
   const playKeyboardLoop = () => {
+    keyboardPlayIntent.current = true;
     unlockAudioContext().then(() => {
+      if (!keyboardPlayIntent.current) return;
       const audio = setupLoop('keyboardLoop', SOUNDS.keyboardLoop, soundsRef.current.gains.keyboardLoop);
       if (audio) {
         audio.play().catch(err => {
@@ -131,6 +166,7 @@ export function useSoundEngine() {
   };
 
   const stopKeyboardLoop = () => {
+    keyboardPlayIntent.current = false;
     const audio = soundsRef.current.keyboardLoop;
     if (audio) {
       audio.pause();
@@ -140,24 +176,18 @@ export function useSoundEngine() {
 
   const playClockTick = () => {
     unlockAudioContext().then(() => {
-      if (!audioCtxRef.current) return;
-      try {
-        const audio = new Audio(SOUNDS.clockTick);
-        audio.crossOrigin = 'anonymous';
-        const source = audioCtxRef.current.createMediaElementSource(audio);
-        source.connect(soundsRef.current.gains.clockTick);
-        audio.play().catch(err => {
-          console.warn('[SoundEngine] Failed to play clock tick:', err.message);
-        });
-      } catch (e) {
-        // Fallback: direct play if routing fails or already connected
-        const audio = new Audio(SOUNDS.clockTick);
-        audio.volume = 0.4;
-        audio.play().catch(err => {
-          console.warn('[SoundEngine] Failed to play clock tick directly:', err.message);
-        });
+      const audio = setupLoop('clockTick', SOUNDS.clockTick, soundsRef.current.gains.clockTick);
+      if (audio) {
+        audio.play().catch(err => console.warn('[SoundEngine] Failed to play clock:', err.message));
       }
     });
+  };
+
+  const stopClockTick = () => {
+    const audio = soundsRef.current.clockTick;
+    if (audio) {
+      audio.pause();
+    }
   };
 
   const playMeetingMuffled = () => {
@@ -167,104 +197,222 @@ export function useSoundEngine() {
 
       // Try loading the muffled voices mp3
       const audio = setupLoop('meetingMuffled', SOUNDS.meetingMuffled, soundsRef.current.gains.meetingMuffled);
-      
       if (audio) {
         audio.play().then(() => {
           console.log('[SoundEngine] Playing meeting muffled audio from file.');
         }).catch(err => {
-          console.warn('[SoundEngine] Failed to play meeting muffled file, starting synth oscillator fallback:', err.message);
-          startSynthMeetingMuffled();
+          console.warn('[SoundEngine] Failed to play meeting muffled file:', err.message);
         });
-      } else {
-        startSynthMeetingMuffled();
+      }
+
+      // Try loading the laughter mp3
+      const laughter = setupLoop('meetingLaughter', SOUNDS.meetingLaughter, soundsRef.current.gains.meetingLaughter);
+      if (laughter) {
+        laughter.play().then(() => {
+          console.log('[SoundEngine] Playing meeting laughter audio from file.');
+        }).catch(err => {
+          console.warn('[SoundEngine] Failed to play meeting laughter file:', err.message);
+        });
       }
     });
   };
 
-  const startSynthMeetingMuffled = () => {
-    const ctx = audioCtxRef.current;
-    if (!ctx) return;
+  const playFlicker = () => {
+    unlockAudioContext().then(() => {
+      const audio = setupLoop('flicker', SOUNDS.flicker, soundsRef.current.gains.flicker);
+      if (audio) {
+        audio.play().catch(err => console.warn('[SoundEngine] Failed to play flicker:', err.message));
+      }
+    });
+  };
 
-    if (soundsRef.current.oscillator) {
-      // Already running
-      return;
+  const stopFlicker = () => {
+    const audio = soundsRef.current.flicker;
+    if (audio) {
+      audio.pause();
     }
+  };
 
-    try {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
+  const playThirdWallSilence = () => {
+    unlockAudioContext().then(() => {
+      const audio = new Audio(SOUNDS.thirdWallSilence);
+      audio.crossOrigin = 'anonymous';
+      audio.loop = true; // loop it during the freeze
+      if (audioCtxRef.current) {
+        const source = audioCtxRef.current.createMediaElementSource(audio);
+        source.connect(audioCtxRef.current.destination);
+      }
+      soundsRef.current.thirdWallSilence = audio;
+      audio.play().catch(err => console.warn('[SoundEngine] Failed to play silence:', err.message));
+    });
+  };
 
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(80, ctx.currentTime);
-      // Connect to the meetingMuffled gain node
-      gain.gain.setValueAtTime(0.05, ctx.currentTime);
-
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start();
-
-      soundsRef.current.oscillator = osc;
-      soundsRef.current.oscillatorGain = gain;
-      console.log('[SoundEngine] Synth meeting muffled oscillator started.');
-    } catch (e) {
-      console.error('[SoundEngine] Failed to start synth meeting muffled:', e);
+  const stopThirdWallSilence = () => {
+    const audio = soundsRef.current.thirdWallSilence;
+    if (audio) {
+      audio.pause();
     }
+  };
+
+  const playTerminal = () => {
+    unlockAudioContext().then(() => {
+      const audio = setupLoop('terminalTyping', SOUNDS.terminalTyping, soundsRef.current.gains.terminalTyping);
+      if (audio) {
+        audio.play().catch(err => console.warn('[SoundEngine] Failed to play terminal typing:', err.message));
+      }
+    });
+  };
+
+  const stopTerminal = () => {
+    const audio = soundsRef.current.terminalTyping;
+    if (audio) {
+      audio.pause();
+    }
+  };
+
+  const orchestrationIntent = useRef(false);
+  const currentTrackIndex = useRef(0);
+  const orchestrationTracks = [
+    '/music/m1.mp3',
+    '/music/m2.mp3',
+    '/music/m3.mp3',
+    '/music/m4.mp3',
+    '/music/m5.mp3',
+    '/music/m6.mp3',
+    '/music/m7.mp3'
+  ];
+
+  const playNextOrchestrationTrack = () => {
+    if (!orchestrationIntent.current) return;
+    
+    if (currentTrackIndex.current >= orchestrationTracks.length) {
+      currentTrackIndex.current = 0; // loop back to start
+    }
+    
+    if (soundsRef.current.orchestrationAudio) {
+      soundsRef.current.orchestrationAudio.pause();
+      soundsRef.current.orchestrationAudio.onended = null;
+    }
+    
+    const src = orchestrationTracks[currentTrackIndex.current];
+    const audio = new Audio(src);
+    audio.crossOrigin = 'anonymous';
+    
+    audio.onended = () => {
+      currentTrackIndex.current++;
+      playNextOrchestrationTrack();
+    };
+    
+    if (audioCtxRef.current) {
+      const source = audioCtxRef.current.createMediaElementSource(audio);
+      source.connect(soundsRef.current.gains.orchestration);
+    }
+    
+    soundsRef.current.orchestrationAudio = audio;
+    audio.play().catch(err => console.warn('[SoundEngine] Failed to play orchestration track:', err.message));
+  };
+
+  const playOrchestration = () => {
+    orchestrationIntent.current = true;
+    currentTrackIndex.current = 0;
+    unlockAudioContext().then(() => {
+      if (!orchestrationIntent.current) return;
+      playNextOrchestrationTrack();
+    });
+  };
+
+  const stopOrchestration = () => {
+    orchestrationIntent.current = false;
+    if (soundsRef.current.orchestrationAudio) {
+      soundsRef.current.orchestrationAudio.pause();
+      soundsRef.current.orchestrationAudio.onended = null;
+    }
+  };
+
+  const playBookDrop = () => {
+    unlockAudioContext().then(() => {
+      const audio = new Audio(SOUNDS.book);
+      audio.crossOrigin = 'anonymous';
+      if (audioCtxRef.current) {
+        const source = audioCtxRef.current.createMediaElementSource(audio);
+        source.connect(audioCtxRef.current.destination);
+      }
+      audio.play().catch(err => console.warn('[SoundEngine] Failed to play book drop:', err.message));
+    });
+  };
+
+  const playArchitectWalk = () => {
+    unlockAudioContext().then(() => {
+      // Loop the walking sound until stopped
+      const audio = setupLoop('architectWalk', SOUNDS.architectWalk, soundsRef.current.gains.ambientHum);
+      if (audio) {
+        audio.play().catch(err => console.warn('[SoundEngine] Failed to play architect walk:', err.message));
+      }
+    });
+  };
+
+  const stopArchitectWalk = () => {
+    const audio = soundsRef.current.architectWalk;
+    if (audio) {
+      audio.pause();
+    }
+  };
+
+  const playHover = (agentId) => {
+    // Optional placeholder for future hover sounds
   };
 
   const stopMeetingMuffled = () => {
     const audio = soundsRef.current.meetingMuffled;
+    if (audio) audio.pause();
+    
+    const laughter = soundsRef.current.meetingLaughter;
+    if (laughter) laughter.pause();
+    
+    console.log('[SoundEngine] Stopped meeting sound.');
+  };
+
+  const playMonitorFlicker = () => {
+    unlockAudioContext().then(() => {
+      const audio = setupLoop('monitorFlicker', SOUNDS.monitorFlicker, soundsRef.current.gains.monitorFlicker);
+      if (audio) {
+        audio.play().catch(err => console.warn('[SoundEngine] Failed to play monitor flicker:', err.message));
+      }
+    });
+  };
+
+  const stopMonitorFlicker = () => {
+    const audio = soundsRef.current.monitorFlicker;
     if (audio) {
       audio.pause();
     }
-    
-    if (soundsRef.current.oscillator) {
-      try {
-        soundsRef.current.oscillator.stop();
-        soundsRef.current.oscillator.disconnect();
-      } catch (e) {}
-      soundsRef.current.oscillator = null;
-    }
-    if (soundsRef.current.oscillatorGain) {
-      try {
-        soundsRef.current.oscillatorGain.disconnect();
-      } catch (e) {}
-      soundsRef.current.oscillatorGain = null;
-    }
-    console.log('[SoundEngine] Stopped meeting muffled.');
   };
 
   const stopAllSounds = () => {
     stopAmbientHum();
     stopKeyboardLoop();
     stopMeetingMuffled();
+    stopClockTick();
+    stopFlicker();
+    stopTerminal();
+    stopThirdWallSilence();
+    stopArchitectWalk();
+    stopMonitorFlicker();
+    stopOrchestration();
     if (soundsRef.current.clockInterval) {
       clearInterval(soundsRef.current.clockInterval);
       soundsRef.current.clockInterval = null;
-      console.log('[SoundEngine] Clock tick interval cleared.');
     }
   };
 
   const startFoundationSounds = () => {
     console.log('[SoundEngine] Starting foundation sounds...');
-    // playAmbientHum();
-    // playKeyboardLoop();
-
-    // Start clock interval if not already running
-    if (!soundsRef.current.clockInterval) {
-      soundsRef.current.clockInterval = setInterval(() => {
-        console.log('[SoundEngine] 60s Clock Tick Interval Fired');
-        // playClockTick();
-      }, 60000);
-      console.log('[SoundEngine] 60s Clock Tick Interval set up.');
-    }
+    playAmbientHum();
+    playClockTick();
   };
 
   const stopClockInterval = () => {
-    if (soundsRef.current.clockInterval) {
-      clearInterval(soundsRef.current.clockInterval);
-      soundsRef.current.clockInterval = null;
-      console.log('[SoundEngine] Clock tick interval stopped.');
-    }
+    stopClockTick();
   };
 
   // Memoize all exposed functions to prevent re-renders when used in dependency arrays
@@ -274,8 +422,23 @@ export function useSoundEngine() {
     playKeyboardLoop,
     stopKeyboardLoop,
     playClockTick,
+    stopClockTick,
     playMeetingMuffled,
     stopMeetingMuffled,
+    playFlicker,
+    stopFlicker,
+    playThirdWallSilence,
+    stopThirdWallSilence,
+    playBookDrop,
+    playArchitectWalk,
+    stopArchitectWalk,
+    playMonitorFlicker,
+    stopMonitorFlicker,
+    playHover,
+    playTerminal,
+    stopTerminal,
+    playOrchestration,
+    stopOrchestration,
     stopAllSounds,
     startFoundationSounds,
     stopClockInterval,
@@ -293,9 +456,24 @@ export function useSoundEngine() {
     window.addEventListener('click', handleGesture);
     window.addEventListener('keydown', handleGesture);
 
+    // Mute/Pause sound on tab change
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        if (audioCtxRef.current && audioCtxRef.current.state === 'running') {
+          audioCtxRef.current.suspend().catch(err => console.warn('[SoundEngine] Suspend failed:', err));
+        }
+      } else {
+        if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
+          audioCtxRef.current.resume().catch(err => console.warn('[SoundEngine] Resume failed:', err));
+        }
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     return () => {
       window.removeEventListener('click', handleGesture);
       window.removeEventListener('keydown', handleGesture);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       if (soundsRef.current.clockInterval) {
         clearInterval(soundsRef.current.clockInterval);
       }

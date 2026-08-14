@@ -95,12 +95,18 @@ const TheTerminal = ({ onClose }) => {
       rawText = rawText.replace('[agentsClickedMessage]', visitorData.agentsClickedMessage);
 
       if (charIndex < rawText.length) {
+        if (charIndex === 0 && window.__workroom_sound?.playTerminal) {
+          window.__workroom_sound.playTerminal();
+        }
         const timer = setTimeout(() => {
           setTypedText(rawText.substring(0, charIndex + 1));
           setCharIndex(prev => prev + 1);
         }, 30); // Exactly 30ms per character
         return () => clearTimeout(timer);
       } else {
+        if (window.__workroom_sound?.stopTerminal) {
+          window.__workroom_sound.stopTerminal();
+        }
         // Line fully typed. Pause before advancing to next line.
         const timer = setTimeout(() => {
           setHistory(prev => [...prev, rawText]);
@@ -112,6 +118,15 @@ const TheTerminal = ({ onClose }) => {
       }
     }
   }, [phase, currentScript, narrationIndex, charIndex, visitorData]);
+
+  // Clean up sound on unmount just in case
+  useEffect(() => {
+    return () => {
+      if (window.__workroom_sound?.stopTerminal) {
+        window.__workroom_sound.stopTerminal();
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if ((phase === 'input' || phase === 'input_final') && inputRef.current) {
@@ -189,6 +204,13 @@ const TheTerminal = ({ onClose }) => {
         @keyframes termFadeIn {
           0%   { opacity: 0; }
           100% { opacity: 1; }
+        }
+        @keyframes placeholderBlink {
+          0%, 100% { opacity: 0.3; }
+          50%      { opacity: 0.7; }
+        }
+        .terminal-placeholder {
+          animation: placeholderBlink 2s ease-in-out infinite;
         }
       `}</style>
 
@@ -271,8 +293,21 @@ const TheTerminal = ({ onClose }) => {
           )}
 
           {(phase === 'input' || phase === 'input_final') && (
-            <div style={{ display: 'flex', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', position: 'relative' }}>
               <span>&gt; _&nbsp;</span>
+              {inputValue === '' && (
+                <span 
+                  className="terminal-placeholder" 
+                  style={{ 
+                    position: 'absolute', 
+                    left: '30px', 
+                    color: '#00ff00', 
+                    pointerEvents: 'none' 
+                  }}
+                >
+                  [ TYPE YOUR ANSWER... ]
+                </span>
+              )}
               <input
                 ref={inputRef}
                 type="text"

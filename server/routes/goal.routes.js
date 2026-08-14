@@ -17,6 +17,12 @@ router.post('/', async (req, res) => {
 
     console.log(`[GoalRoute] New goal received: "${goal}"`);
 
+    // If this is just a terminal answer, log it and return early without starting tasks
+    if (goal.startsWith('[TERMINAL ANSWER]')) {
+      const savedGoal = await Goal.create({ text: goal.trim(), fourthWallTriggered: false, status: 'Answer' });
+      return res.status(201).json({ message: 'Terminal answer recorded', goal: savedGoal });
+    }
+
     // Reset any stale fourthWallTriggered state from previous sessions (temp testing fix)
     await Goal.updateMany({}, { fourthWallTriggered: false });
     const savedGoal = await Goal.create({ text: goal.trim(), fourthWallTriggered: false });
@@ -70,7 +76,13 @@ router.post('/', async (req, res) => {
 
     // Emit each task assignment to the correct agent
     savedTasks.forEach(task => {
-      const agentId = roleToAgentId[task.assignedRole.toLowerCase()] || task.assignedRole.toLowerCase();
+      let agentId = 'zeno';
+      const assigned = task.assignedRole.toLowerCase();
+      if (assigned.includes('pm') || assigned.includes('product') || assigned.includes('aria')) {
+        agentId = 'aria';
+      } else if (assigned.includes('backend') || assigned.includes('engineer') || assigned.includes('kael')) {
+        agentId = 'kael';
+      }
       target.emit('agent:taskAssigned', {
         agentId: agentId,
         task: {
@@ -118,9 +130,15 @@ router.post('/', async (req, res) => {
     // Simulate task completion after estimatedCycles * 6 seconds
     // Then check if all tasks done and trigger fourth wall
     savedTasks.forEach(task => {
-      const delay = (task.estimatedCycles || 3) * 6000;
+      const delay = (task.estimatedCycles || 3) * 12000;
       setTimeout(async () => {
-        const agentId = roleToAgentId[task.assignedRole.toLowerCase()] || task.assignedRole.toLowerCase();
+        let agentId = 'zeno';
+        const assigned = task.assignedRole.toLowerCase();
+        if (assigned.includes('pm') || assigned.includes('product') || assigned.includes('aria')) {
+          agentId = 'aria';
+        } else if (assigned.includes('backend') || assigned.includes('engineer') || assigned.includes('kael')) {
+          agentId = 'kael';
+        }
         target.emit('agent:stateChanged', {
           agentId: agentId,
           state: 'idle',

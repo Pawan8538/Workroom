@@ -177,11 +177,17 @@ const TheArchivist = ({ warmWhite, doorOpen }) => {
               setIsFigureVisible(false);
             }, 2000);
           }
-          setIsHovered(true); 
+          setIsHovered(true);
+          if (window.__workroom_sound?.playFlicker) {
+            window.__workroom_sound.playFlicker();
+          }
         }}
         onPointerOut={(e) => { 
           e.stopPropagation(); 
-          setIsHovered(false); 
+          setIsHovered(false);
+          if (window.__workroom_sound?.stopFlicker) {
+            window.__workroom_sound.stopFlicker();
+          }
         }}
         visible={false}
       >

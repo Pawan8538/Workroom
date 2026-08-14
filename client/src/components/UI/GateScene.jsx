@@ -1,8 +1,12 @@
 import React, { useState, useEffect } from 'react';
 
-const GateScene = ({ onComplete }) => {
+const GateScene = ({ onComplete, playGate }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
+
+  const handleHover = () => {
+    setIsHovered(true);
+  };
 
   const handleOpen = () => {
     if (isOpen) return;
@@ -43,7 +47,7 @@ const GateScene = ({ onComplete }) => {
 
       {/* ── Door Frame ── */}
       <div 
-        onMouseEnter={() => setIsHovered(true)}
+        onMouseEnter={handleHover}
         onMouseLeave={() => setIsHovered(false)}
         style={{
           width: '200px',

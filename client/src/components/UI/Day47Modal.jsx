@@ -3,10 +3,10 @@ import { PAPER_LAYER_ONE } from '../../constants/PAPER_TEXT';
 
 const Day47Modal = ({ onClose }) => {
   return (
-    <div 
+    <div
       onClick={onClose}
       style={{
-        position: 'absolute',
+        position: 'fixed',
         inset: 0,
         backgroundColor: 'rgba(0,0,0,0.85)',
         zIndex: 10000,
@@ -16,7 +16,7 @@ const Day47Modal = ({ onClose }) => {
         cursor: 'pointer'
       }}
     >
-      <div 
+      <div
         onClick={(e) => e.stopPropagation()}
         style={{
           backgroundColor: '#eae5d8',
@@ -28,7 +28,8 @@ const Day47Modal = ({ onClose }) => {
           lineHeight: '1.6',
           boxShadow: '0 0 40px rgba(0,0,0,0.6)',
           transform: 'rotate(-2deg)',
-          whiteSpace: 'pre-wrap'
+          whiteSpace: 'pre-wrap',
+          cursor: 'default',
         }}
       >
         {PAPER_LAYER_ONE}

@@ -16,7 +16,7 @@ if (typeof document !== 'undefined' && !document.getElementById('goal-blink-styl
 
 const IDLE_BLINK_DELAY = 2 * 60 * 1000; // 2 minutes
 
-const GoalInput = ({ socket, isMeetingActive }) => {
+const GoalInput = ({ socket, isMeetingActive, onSubmitGoal }) => {
   const [goal, setGoal] = useState('');
   const [isBlinking, setIsBlinking] = useState(false);
   const idleTimerRef = useRef(null);
@@ -59,6 +59,9 @@ const GoalInput = ({ socket, isMeetingActive }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ goal: currentGoal, socketId: socket?.id })
       });
+      if (response.ok && onSubmitGoal) {
+        onSubmitGoal();
+      }
       const data = await response.json();
       console.log('[GoalInput] Response:', data);
     } catch (err) {
@@ -145,7 +148,7 @@ const GoalInput = ({ socket, isMeetingActive }) => {
           width: 'max-content',
           zIndex: 100
         }}>
-          {["say hello world", "Create a REST API", "Design a database schema", "Build a login page"].map((sug, i) => (
+          {["Hello World", "Create a REST API", "Design a database schema", "Build a login page"].map((sug, i) => (
             <div
               key={i}
               onClick={() => { setGoal(sug); setIsBlinking(false); stopIdleTimer(); }}

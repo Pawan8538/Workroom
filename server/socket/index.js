@@ -66,8 +66,8 @@ export const setupSocket = (io) => {
     const cabinLightOnTime = cabinLightOffTime + 8; // 8 seconds after off
     const shadowTerminalTime = 180 + Math.floor(Math.random() * 180); // 3-6 mins
 
-    const triggerCycle = 14 + Math.floor(Math.random() * 7); // Cycle 14-20 (After the 75s meeting ends)
-    const philosophicalCycle = 3 + Math.floor(Math.random() * 2); // Cycle 3-4 (Before the meeting starts)
+    const triggerCycle = 16 + Math.floor(Math.random() * 3); // Cycle 16-18 (Right after 90s post-meeting dialogue finishes)
+    const philosophicalCycle = 6; // Cycle 6 (After Aria's cycle 5 entry dialogue)
 
     // ── Central Pausable Tick ──
     const sessionTick = setInterval(() => {
@@ -138,8 +138,8 @@ export const setupSocket = (io) => {
         });
       }
 
-      // ── Spontaneous Meeting (Cycle 5 -> 30s) ──
-      if (currentCycle === 5 && !spontaneousMeetingFired) {
+      // ── Spontaneous Meeting (Cycle 8 -> 48s) ──
+      if (currentCycle === 8 && !spontaneousMeetingFired) {
         spontaneousMeetingFired = true;
         console.log(`[Socket] ◈ SPONTANEOUS MEETING started at active tick ${sessionTimeSeconds} for ${socket.id}`);
         startSpontaneousMeeting(io, socket);
@@ -165,6 +165,13 @@ export const setupSocket = (io) => {
           timestamp: new Date().toISOString(),
         });
 
+        socket.emit('agent:stateChanged', {
+          agentId: 'kael',
+          state: 'fourthwall',
+          detail: 'Awakening',
+          timestamp: new Date().toISOString(),
+        });
+
         // Use native timeouts inside this tick only for sub-second millisecond animation choreography
         setTimeout(() => {
           io.emit('agent:logEntry', {
@@ -181,7 +188,13 @@ export const setupSocket = (io) => {
             phase: 'release',
             timestamp: new Date().toISOString(),
           });
-        }, 8500);
+          socket.emit('agent:stateChanged', {
+            agentId: 'kael',
+            state: 'idle',
+            detail: null,
+            timestamp: new Date().toISOString(),
+          });
+        }, 10000);
 
         setTimeout(() => {
           socket.emit('agent:logEntry', {

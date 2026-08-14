@@ -2,7 +2,7 @@ import { getCompletion } from './llm.service.js';
 
 export const generateCodeContent = async (taskTitle, goalText) => {
   const prompt = `You are a backend developer. You are currently working on a task: "${taskTitle}" as part of the overall goal: "${goalText}".
-Generate 20-30 lines of realistic code that implements this task. Do not include markdown formatting or explanations, just the raw code. Keep it realistic but concise.`;
+Generate 20-30 lines of realistic code that implements this task using Node.js and Express.js exclusively. Do not include markdown formatting or explanations, just the raw code. Keep it realistic but concise.`;
   const response = await getCompletion(prompt);
   return response.split('\n');
 };

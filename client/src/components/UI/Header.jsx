@@ -32,7 +32,7 @@ const Header = ({ isConnected, cycle }) => {
       letterSpacing: '1px',
       pointerEvents: 'none'
     }}>
-      <div style={{ opacity: 0.6 }}>SYS_VER  : 1.7.03</div>
+      <div style={{ opacity: 0.6 }}>SYS_VER  : 19-5-26</div>
       <div style={{ opacity: 0.6 }}>GRID     : WRK_0x43</div>
       <div style={{ opacity: 0.6 }}>MODE     : OBSERVE</div>
       <div style={{ opacity: 0.6 }}>SESSION  : 0047</div>
@@ -53,6 +53,18 @@ const Header = ({ isConnected, cycle }) => {
           OBSERVER : DETECTED
         </div>
       )}
+
+      <div style={{
+        position: 'fixed',
+        bottom: '20px',
+        left: '20px',
+        fontSize: '9px',
+        opacity: 0.3,
+        pointerEvents: 'none',
+        letterSpacing: '1px'
+      }}>
+        SESSION DATA IS COLLECTED ANONYMOUSLY TO IMPROVE THIS EXPERIENCE
+      </div>
 
       <style>{`
         @keyframes fadeIn {

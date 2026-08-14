@@ -8,7 +8,7 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || 'dummy_key_if_
 
 router.post('/request', async (req, res) => {
   try {
-    const { name, role, whatBuilding, sessionId, visitStats } = req.body;
+    const { name, role, whatBuilding, linkedin, sessionId, visitStats } = req.body;
     
     if (!name || !role || !whatBuilding || !sessionId) {
       return res.status(400).json({ error: 'Missing required fields' });
@@ -18,6 +18,7 @@ router.post('/request', async (req, res) => {
       name,
       role,
       whatBuilding,
+      linkedin,
       sessionId,
       visitStats,
       status: 'pending'

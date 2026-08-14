@@ -78,7 +78,9 @@ const AgentList = ({ agents = [] }) => {
                     ? '#ff8a00'
                     : agent.status === 'meeting'
                       ? '#00f5ff'
-                      : '#888',
+                      : agent.status === 'fourthwall'
+                        ? '#ff0055'
+                        : '#888',
                   textTransform: 'uppercase'
                 }}>
                   {agent.status || 'IDLE'}

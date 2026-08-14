@@ -4,6 +4,7 @@ const chapter2RequestSchema = new mongoose.Schema({
   name: { type: String, required: true },
   role: { type: String, required: true },
   whatBuilding: { type: String, required: true },
+  linkedin: { type: String, default: '' },
   sessionId: { type: String, required: true },
   visitStats: {
     timeSpent: { type: Number, default: 0 },

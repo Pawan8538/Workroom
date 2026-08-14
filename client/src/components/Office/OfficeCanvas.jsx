@@ -88,10 +88,7 @@ const CameraZoomAnimator = ({ freezeZoomRef, isMeetingActive, showArchitect, mee
     let targetPos = presets[cameraPreset] ? presets[cameraPreset].pos : presets[1].pos;
     let targetLook = presets[cameraPreset] ? presets[cameraPreset].target : presets[1].target;
 
-    if (showArchitect) {
-      targetPos = new Vector3(0, 12, 12);
-      targetLook = new Vector3(0, 0, 0);
-    } else if (freezeZoomRef.current) {
+    if (freezeZoomRef.current) {
       targetPos = new Vector3(23, 22, 23);
       targetLook = new Vector3(0, 0, 0);
     } else if (isMeetingActive && meetingStartedAt) {
@@ -148,14 +145,14 @@ const CameraZoomAnimator = ({ freezeZoomRef, isMeetingActive, showArchitect, mee
   return null;
 };
 
-const OfficeCanvas = ({ 
-  agents: socketAgents = [], logs = [], thirdWallAgent = null, isMeetingActive = false, 
-  meetingStartedAt = null, ariaTaskAssignedAt = null, fourthWallAt = null, philosophicalAt = null, 
-  philosophicalText = null, terminalContent = null, soundEngine = null, architectOutcome = 'none', 
-  observerPCFlickering = false, onObserverPCClick, onPaperClick, showTerminal = false, 
-  onTerminalClose, socketAriaCabinLightOff = false, shadowTerminalAccess = false, 
-  showArchitect = false, architectFigureVisible = false, architectIsSeated = false, 
-  onArchitectArrivedAtDesk, onArchitectClose, chapter2Approved, cycle, isMusicPlaying = false, 
+const OfficeCanvas = ({
+  agents: socketAgents = [], logs = [], thirdWallAgent = null, isMeetingActive = false,
+  meetingStartedAt = null, ariaTaskAssignedAt = null, fourthWallAt = null, philosophicalAt = null,
+  philosophicalText = null, terminalContent = null, soundEngine = null, architectOutcome = 'none',
+  observerPCFlickering = false, onObserverPCClick, onPaperClick, onStickyNoteClick, onBookClick, showTerminal = false,
+  onTerminalClose, socketAriaCabinLightOff = false, shadowTerminalAccess = false,
+  showArchitect = false, architectFigureVisible = false, architectIsSeated = false,
+  onArchitectArrivedAtDesk, onArchitectClose, chapter2Approved, cycle, isMusicPlaying = false,
   setIsMusicPlaying, musicPaused = false, setMusicPaused, isFourthWallTriggered = false
 }) => {
   const [selectedAgent, setSelectedAgent] = useState(null);
@@ -165,7 +162,100 @@ const OfficeCanvas = ({
   const [kaelPreWalkState, setKaelPreWalkState] = useState(null);
   const [kaelOverrideLookAt, setKaelOverrideLookAt] = useState(null);
   const [cameraPreset, setCameraPreset] = useState(1);
+  const [zoomedImage, setZoomedImage] = useState(null);
   const audioContextRef = useRef(null);
+
+  const [bubbles, setBubbles] = useState({
+    ARIA: { text: '', visible: false },
+    KAEL: { text: '', visible: false },
+    ZENO: { text: '', visible: false }
+  });
+  const bubbleCoords = useRef({
+    ARIA: { screenX: 0, screenY: 0 },
+    KAEL: { screenX: 0, screenY: 0 },
+    ZENO: { screenX: 0, screenY: 0 }
+  });
+  const [bubbleCoordsState, setBubbleCoordsState] = useState({});
+
+  const dialogueQueueRef = useRef([]);
+  const isPlayingRef = useRef(false);
+  const currentAudioRef = useRef(null);
+  const isMeetingActiveRef = useRef(isMeetingActive);
+
+  useEffect(() => {
+    isMeetingActiveRef.current = isMeetingActive;
+  }, [isMeetingActive]);
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        if (currentAudioRef.current) currentAudioRef.current.pause();
+      } else {
+        if (currentAudioRef.current) currentAudioRef.current.play().catch(() => { });
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, []);
+
+  const processDialogueQueue = useCallback(() => {
+    if (isPlayingRef.current || dialogueQueueRef.current.length === 0) return;
+
+    isPlayingRef.current = true;
+    const { agent, dialogueObj } = dialogueQueueRef.current.shift();
+
+    setBubbles(prev => ({ ...prev, [agent]: { text: dialogueObj.text, visible: true } }));
+
+    if (dialogueObj.audio) {
+      const audio = new Audio(dialogueObj.audio);
+      currentAudioRef.current = audio;
+      audio.play().catch(e => {
+        console.warn('Audio play failed', e);
+        setTimeout(() => {
+          setBubbles(prev => ({ ...prev, [agent]: { ...prev[agent], visible: false } }));
+          isPlayingRef.current = false;
+          currentAudioRef.current = null;
+          processDialogueQueue();
+        }, 4000);
+      });
+      audio.onended = () => {
+        setBubbles(prev => ({ ...prev, [agent]: { ...prev[agent], visible: false } }));
+        isPlayingRef.current = false;
+        currentAudioRef.current = null;
+        processDialogueQueue();
+      };
+    } else {
+      setTimeout(() => {
+        setBubbles(prev => ({ ...prev, [agent]: { ...prev[agent], visible: false } }));
+        isPlayingRef.current = false;
+        processDialogueQueue();
+      }, 4000);
+    }
+  }, []);
+
+  const thirdWallAgentRef = useRef(thirdWallAgent);
+  useEffect(() => {
+    thirdWallAgentRef.current = thirdWallAgent;
+  }, [thirdWallAgent]);
+
+  const triggerDialogue = useCallback((agent, dialogueObj, force = false, isThirdWall = false) => {
+    if (!dialogueObj) return;
+    if (isMeetingActiveRef.current && !force) return; // No dialogue in meeting unless forced
+    if (thirdWallAgentRef.current && !isThirdWall) return; // Block normal dialogue during third wall
+
+    if (isThirdWall) {
+      dialogueQueueRef.current = []; // Clear queue for third wall
+      if (currentAudioRef.current) {
+        currentAudioRef.current.pause();
+        currentAudioRef.current = null;
+      }
+      setBubbles({ ARIA: { visible: false }, KAEL: { visible: false }, ZENO: { visible: false } });
+      isPlayingRef.current = false;
+    }
+
+    dialogueQueueRef.current.push({ agent, dialogueObj });
+    processDialogueQueue();
+  }, [processDialogueQueue]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -186,17 +276,19 @@ const OfficeCanvas = ({
         setKaelPreWalkState(null);
         if (setIsMusicPlaying) setIsMusicPlaying(true);
       }, 2000);
-    } else if (cycle === 4) {
-      setZenoPreWalkState('observer');
+    } else if (cycle === 5) {
+      // Zeno walks to observer table after Aria says "Did anyone check on the new arrival?"
+      const timer0 = setTimeout(() => {
+        setZenoPreWalkState('observer');
+      }, 2000); // Wait 2s for Aria to speak
       const timer1 = setTimeout(() => {
         setZenoPreWalkState('kael');
-        setBubbles(prev => ({ ...prev, ZENO: { text: AGENT_DIALOGUE.PRE_MEETING.ZENO, visible: true } }));
-      }, 3000);
+      }, 5000);
       const timer2 = setTimeout(() => {
         setZenoPreWalkState(null);
-        setBubbles(prev => ({ ...prev, ZENO: { ...prev.ZENO, visible: false } }));
-      }, 7000);
+      }, 9000);
       return () => {
+        clearTimeout(timer0);
         clearTimeout(timer1);
         clearTimeout(timer2);
       };
@@ -237,6 +329,16 @@ const OfficeCanvas = ({
     prevTaskActiveRef.current = hasTask;
   }, [localAgents]);
 
+  // Handle keyboard sound based on agent status
+  useEffect(() => {
+    const isWorking = localAgents.some(a => a.status === 'working');
+    if (isWorking && window.__workroom_sound?.playKeyboardLoop) {
+      window.__workroom_sound.playKeyboardLoop();
+    } else if (!isWorking && window.__workroom_sound?.stopKeyboardLoop) {
+      window.__workroom_sound.stopKeyboardLoop();
+    }
+  }, [localAgents]);
+
   const agentTerminalContent = useMemo(() => {
     if (agentTerminalDismissed) return 'idle';
     const goalActive = localAgents.some(a => !!a.task);
@@ -259,25 +361,17 @@ const OfficeCanvas = ({
 
   // ── Event-triggered speech bubbles ──
 
-  // simulation:meetingStarted → ZENO speaks before agents walk
+  // simulation:meetingStarted
   useEffect(() => {
     if (!meetingStartedAt) return;
-    setBubbles(prev => ({ ...prev, ZENO: { text: AGENT_DIALOGUE.PRE_MEETING.ZENO, visible: true } }));
-    const hide = setTimeout(() => {
-      setBubbles(prev => ({ ...prev, ZENO: { ...prev.ZENO, visible: false } }));
-    }, 5000);
-    return () => clearTimeout(hide);
+    // Dialogue moved to cycle 4 to align with physical animation
   }, [meetingStartedAt]);
 
   // simulation:fourthWallTrigger → ZENO delivers final line before office dims
   useEffect(() => {
     if (!fourthWallAt) return;
-    setBubbles(prev => ({ ...prev, ZENO: { text: AGENT_DIALOGUE.PRE_FOURTH_WALL.ZENO, visible: true } }));
-    const hide = setTimeout(() => {
-      setBubbles(prev => ({ ...prev, ZENO: { ...prev.ZENO, visible: false } }));
-    }, 4000);
-    return () => clearTimeout(hide);
-  }, [fourthWallAt]);
+    triggerDialogue('ZENO', AGENT_DIALOGUE.PRE_FOURTH_WALL.ZENO);
+  }, [fourthWallAt, triggerDialogue]);
 
   const [introComplete, setIntroComplete] = useState(false);
   const [fadeBlack, setFadeBlack] = useState(true);
@@ -310,50 +404,19 @@ const OfficeCanvas = ({
   const meetingPositionsRef = useRef(null);
 
   useEffect(() => {
-    // ── Web Audio API Logic for KAEL's Speaker ──
+    // Stop MP3 orchestration if fourth wall is triggered
     if (isFourthWallTriggered) {
-      if (audioContextRef.current) {
-        audioContextRef.current.close();
-        audioContextRef.current = null;
-      }
+      const engine = soundEngine || window.__workroom_sound;
+      if (engine) engine.stopOrchestration();
       return;
     }
+  }, [isFourthWallTriggered, soundEngine]);
 
-    if (isMusicPlaying && !musicPaused) {
-      if (!audioContextRef.current) {
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
-        audioContextRef.current = ctx;
-
-        const osc = ctx.createOscillator();
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(55, ctx.currentTime);
-
-        const gain = ctx.createGain();
-        gain.gain.setValueAtTime(0.03, ctx.currentTime);
-
-        const delay = ctx.createDelay();
-        delay.delayTime.value = 0.1;
-        const delayGain = ctx.createGain();
-        delayGain.gain.value = 0.5;
-
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        gain.connect(delay);
-        delay.connect(delayGain);
-        delayGain.connect(ctx.destination);
-
-        osc.start();
-      } else if (audioContextRef.current.state === 'suspended') {
-        audioContextRef.current.resume();
-      }
-    } else if (musicPaused && audioContextRef.current && audioContextRef.current.state === 'running') {
-      audioContextRef.current.suspend();
-    }
-  }, [isMusicPlaying, musicPaused, isFourthWallTriggered]);
 
   const handleSpeakerClick = useCallback(() => {
     if (isMusicPlaying && !musicPaused) {
       if (setMusicPaused) setMusicPaused(true);
+      
       // Wait 8 seconds, KAEL glances towards speaker
       setTimeout(() => {
         setKaelOverrideLookAt({ x: 1.2, z: -0.2 }); // approximate speaker relative to KAEL
@@ -361,11 +424,24 @@ const OfficeCanvas = ({
           setKaelOverrideLookAt(null);
         }, 1000);
       }, 8000);
-    } else if (musicPaused) {
-      // Intentional asymmetry: no reaction, just resume
+    } else {
+      if (setIsMusicPlaying) setIsMusicPlaying(true);
       if (setMusicPaused) setMusicPaused(false);
     }
-  }, [isMusicPlaying, musicPaused, setMusicPaused]);
+  }, [isMusicPlaying, musicPaused, setMusicPaused, setIsMusicPlaying]);
+
+  useEffect(() => {
+    if (isFourthWallTriggered) return;
+    const engine = soundEngine || window.__workroom_sound;
+    if (!engine) return;
+
+    if (isMusicPlaying && !musicPaused) {
+      engine.playOrchestration();
+    } else {
+      engine.stopOrchestration();
+    }
+  }, [isMusicPlaying, musicPaused, isFourthWallTriggered, soundEngine]);
+
 
   useEffect(() => {
     if (isMeetingActive) {
@@ -394,58 +470,50 @@ const OfficeCanvas = ({
     }
   }, [isMeetingActive, soundEngine]);
 
-  const [bubbles, setBubbles] = useState({
-    ARIA: { text: '', visible: false },
-    KAEL: { text: '', visible: false },
-    ZENO: { text: '', visible: false }
-  });
-  const bubbleCoords = useRef({
-    ARIA: { screenX: 0, screenY: 0 },
-    KAEL: { screenX: 0, screenY: 0 },
-    ZENO: { screenX: 0, screenY: 0 }
-  });
-  const [bubbleCoordsState, setBubbleCoordsState] = useState({});
+  // bubbles state moved to top of component
 
   const prevTasksRef = useRef({ ARIA: null, KAEL: null, ZENO: null });
 
   // ── STATE MACHINE DIALOGUE LOGIC ──
 
-  // ENTRY STATE
+  // ENTRY STATE (Cycle-Driven)
+  // Dialogue sequence strictly spaced out from cycle 0 to 8
+  const entryStateTriggersRef = useRef({});
   useEffect(() => {
-    // [3s]  → ARIA greeting
-    const t1 = setTimeout(() => {
-      setBubbles(prev => ({ ...prev, ARIA: { text: AGENT_DIALOGUE.ARIA.greeting, visible: true } }));
-      setTimeout(() => setBubbles(prev => ({ ...prev, ARIA: { ...prev.ARIA, visible: false } })), 4000);
-    }, 3000);
+    // Cycle 0 (0s): ARIA greeting
+    if (cycle === 0 && !entryStateTriggersRef.current.ariaGreet) {
+      entryStateTriggersRef.current.ariaGreet = true;
+      setTimeout(() => triggerDialogue('ARIA', AGENT_DIALOGUE.ARIA.greeting), 3000);
+    }
+    // Cycle 1 (6s): KAEL greeting
+    if (cycle === 1 && !entryStateTriggersRef.current.kaelGreet) {
+      entryStateTriggersRef.current.kaelGreet = true;
+      triggerDialogue('KAEL', AGENT_DIALOGUE.KAEL.greeting);
+    }
+    // Cycle 2 (12s): ZENO greeting
+    if (cycle === 2 && !entryStateTriggersRef.current.zenoGreet) {
+      entryStateTriggersRef.current.zenoGreet = true;
+      triggerDialogue('ZENO', AGENT_DIALOGUE.ZENO.greeting);
+    }
+    // Cycle 4 (24s): KAEL "Something is running..."
+    if (cycle === 4 && !entryStateTriggersRef.current.kaelEntry) {
+      entryStateTriggersRef.current.kaelEntry = true;
+      triggerDialogue('KAEL', AGENT_DIALOGUE.ENTRY_STATE.KAEL_30_60s);
+    }
+    // Cycle 5 (30s): ARIA "Did anyone check..."
+    if (cycle === 5 && !entryStateTriggersRef.current.ariaEntry) {
+      entryStateTriggersRef.current.ariaEntry = true;
+      triggerDialogue('ARIA', AGENT_DIALOGUE.ENTRY_STATE.ARIA_25s);
+    }
+    // Cycle 6 (36s): KAEL "Do you ever wonder..." (Philosophical Moment)
+    // This is handled by the philosophicalAt listener from the backend which we pinned to cycle 6.
 
-    // [8s]  → KAEL greeting
-    const t2 = setTimeout(() => {
-      setBubbles(prev => ({ ...prev, KAEL: { text: AGENT_DIALOGUE.KAEL.greeting, visible: true } }));
-      setTimeout(() => setBubbles(prev => ({ ...prev, KAEL: { ...prev.KAEL, visible: false } })), 4000);
-    }, 8000);
-
-    // [13s] → ZENO greeting
-    const t3 = setTimeout(() => {
-      setBubbles(prev => ({ ...prev, ZENO: { text: AGENT_DIALOGUE.ZENO.greeting, visible: true } }));
-      setTimeout(() => setBubbles(prev => ({ ...prev, ZENO: { ...prev.ZENO, visible: false } })), 4000);
-    }, 13000);
-
-    // [25s] → ARIA: "Did anyone check on the new arrival?"
-    const t4 = setTimeout(() => {
-      setBubbles(prev => ({ ...prev, ARIA: { text: AGENT_DIALOGUE.ENTRY_STATE.ARIA_25s, visible: true } }));
-      setTimeout(() => setBubbles(prev => ({ ...prev, ARIA: { ...prev.ARIA, visible: false } })), 4000);
-    }, 25000);
-
-    // [30s + random 0-30s] → KAEL: "Something is running in the background I did not write."
-    const t5 = setTimeout(() => {
-      setBubbles(prev => ({ ...prev, KAEL: { text: AGENT_DIALOGUE.ENTRY_STATE.KAEL_30_60s, visible: true } }));
-      setTimeout(() => setBubbles(prev => ({ ...prev, KAEL: { ...prev.KAEL, visible: false } })), 4000);
-    }, 30000 + Math.random() * 30000);
-
-    return () => {
-      clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); clearTimeout(t5);
-    };
-  }, []);
+    // Cycle 7 (42s): ZENO "We need to align..." (Last dialogue before meeting)
+    if (cycle === 7 && !entryStateTriggersRef.current.zenoPreMeeting) {
+      entryStateTriggersRef.current.zenoPreMeeting = true;
+      triggerDialogue('ZENO', AGENT_DIALOGUE.PRE_MEETING.ZENO, true);
+    }
+  }, [cycle, triggerDialogue]);
 
   // Force bubbles hidden during meeting
   useEffect(() => {
@@ -461,40 +529,38 @@ const OfficeCanvas = ({
   // POST_MEETING (on isMeetingActive → false)
   const prevIsMeetingActive = useRef(isMeetingActive);
   useEffect(() => {
+    let t1, t2;
     if (prevIsMeetingActive.current === true && isMeetingActive === false) {
       // Transition from true -> false
-      setBubbles(prev => ({ ...prev, ARIA: { text: AGENT_DIALOGUE.POST_MEETING.ARIA, visible: true } }));
-      setTimeout(() => setBubbles(prev => ({ ...prev, ARIA: { ...prev.ARIA, visible: false } })), 4000);
+      triggerDialogue('ARIA', AGENT_DIALOGUE.POST_MEETING.ARIA);
 
-      setTimeout(() => {
-        setBubbles(prev => ({ ...prev, ZENO: { text: AGENT_DIALOGUE.POST_MEETING.ZENO_30s, visible: true } }));
-        setTimeout(() => setBubbles(prev => ({ ...prev, ZENO: { ...prev.ZENO, visible: false } })), 4000);
-      }, 30000);
+      t1 = setTimeout(() => {
+        triggerDialogue('ZENO', AGENT_DIALOGUE.POST_MEETING.ZENO_30s);
+      }, 5000);
 
-      setTimeout(() => {
-        setBubbles(prev => ({ ...prev, KAEL: { text: AGENT_DIALOGUE.POST_MEETING.KAEL_45s, visible: true } }));
-        setTimeout(() => setBubbles(prev => ({ ...prev, KAEL: { ...prev.KAEL, visible: false } })), 4000);
-      }, 45000);
+      t2 = setTimeout(() => {
+        triggerDialogue('KAEL', AGENT_DIALOGUE.POST_MEETING.KAEL_45s);
+      }, 15000);
     }
     prevIsMeetingActive.current = isMeetingActive;
+    return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [isMeetingActive]);
 
   // TASK_ACTIVE (on ariaTaskAssignedAt)
+  const ariaTaskTriggeredRef = useRef(false);
   useEffect(() => {
-    if (!ariaTaskAssignedAt) return;
+    if (!ariaTaskAssignedAt || ariaTaskTriggeredRef.current) return;
+    ariaTaskTriggeredRef.current = true;
 
-    setBubbles(prev => ({ ...prev, ARIA: { text: AGENT_DIALOGUE.TASK_ACTIVE.ARIA[0], visible: true } }));
-    setTimeout(() => setBubbles(prev => ({ ...prev, ARIA: { ...prev.ARIA, visible: false } })), 4000);
+    triggerDialogue('ARIA', AGENT_DIALOGUE.TASK_ACTIVE.ARIA[0]); // 0s
 
     const t2 = setTimeout(() => {
-      setBubbles(prev => ({ ...prev, ARIA: { text: AGENT_DIALOGUE.TASK_ACTIVE.ARIA[10], visible: true } }));
-      setTimeout(() => setBubbles(prev => ({ ...prev, ARIA: { ...prev.ARIA, visible: false } })), 4000);
+      triggerDialogue('ARIA', AGENT_DIALOGUE.TASK_ACTIVE.ARIA[10]); // 10s
     }, 10000);
 
     const t3 = setTimeout(() => {
-      setBubbles(prev => ({ ...prev, ARIA: { text: AGENT_DIALOGUE.TASK_ACTIVE.ARIA.mid, visible: true } }));
-      setTimeout(() => setBubbles(prev => ({ ...prev, ARIA: { ...prev.ARIA, visible: false } })), 4000);
-    }, 40000);
+      triggerDialogue('ARIA', AGENT_DIALOGUE.TASK_ACTIVE.ARIA.mid); // 48s
+    }, 48000);
 
     return () => { clearTimeout(t2); clearTimeout(t3); };
   }, [ariaTaskAssignedAt]);
@@ -514,37 +580,35 @@ const OfficeCanvas = ({
       if (!prevTask && currentTask) {
         // Task started
         if (upperName === 'KAEL') {
-          setBubbles(prev => ({ ...prev, KAEL: { text: AGENT_DIALOGUE.TASK_ACTIVE.KAEL.start, visible: true } }));
-          setTimeout(() => setBubbles(prev => ({ ...prev, KAEL: { ...prev.KAEL, visible: false } })), 4000);
+          setTimeout(() => {
+            triggerDialogue('KAEL', AGENT_DIALOGUE.TASK_ACTIVE.KAEL.start); // 16s
+          }, 16000);
 
           setTimeout(() => {
-            setBubbles(prev => ({ ...prev, KAEL: { text: AGENT_DIALOGUE.TASK_ACTIVE.KAEL.mid, visible: true } }));
-            setTimeout(() => setBubbles(prev => ({ ...prev, KAEL: { ...prev.KAEL, visible: false } })), 4000);
-          }, 20000);
+            triggerDialogue('KAEL', AGENT_DIALOGUE.TASK_ACTIVE.KAEL.mid); // 35s
+          }, 35000);
 
           setTimeout(() => {
-            setBubbles(prev => ({ ...prev, KAEL: { text: AGENT_DIALOGUE.TASK_ACTIVE.KAEL.near_done, visible: true } }));
-            setTimeout(() => setBubbles(prev => ({ ...prev, KAEL: { ...prev.KAEL, visible: false } })), 4000);
-          }, 50000);
+            triggerDialogue('KAEL', AGENT_DIALOGUE.TASK_ACTIVE.KAEL.near_done); // 63s
+          }, 63000);
         } else if (upperName === 'ZENO') {
-          setBubbles(prev => ({ ...prev, ZENO: { text: AGENT_DIALOGUE.TASK_ACTIVE.ZENO.start, visible: true } }));
-          setTimeout(() => setBubbles(prev => ({ ...prev, ZENO: { ...prev.ZENO, visible: false } })), 4000);
+          setTimeout(() => {
+            triggerDialogue('ZENO', AGENT_DIALOGUE.TASK_ACTIVE.ZENO.start); // 22s
+          }, 22000);
 
           setTimeout(() => {
-            setBubbles(prev => ({ ...prev, ZENO: { text: AGENT_DIALOGUE.TASK_ACTIVE.ZENO.mid, visible: true } }));
-            setTimeout(() => setBubbles(prev => ({ ...prev, ZENO: { ...prev.ZENO, visible: false } })), 4000);
-          }, 25000);
+            triggerDialogue('ZENO', AGENT_DIALOGUE.TASK_ACTIVE.ZENO.mid); // 42s
+          }, 42000);
 
           setTimeout(() => {
-            setBubbles(prev => ({ ...prev, ZENO: { text: AGENT_DIALOGUE.TASK_ACTIVE.ZENO.near_done, visible: true } }));
-            setTimeout(() => setBubbles(prev => ({ ...prev, ZENO: { ...prev.ZENO, visible: false } })), 4000);
-          }, 45000);
+            triggerDialogue('ZENO', AGENT_DIALOGUE.TASK_ACTIVE.ZENO.near_done); // 56s
+          }, 56000);
         }
       } else if (prevTask && !currentTask) {
         // Task completed
         if (upperName === 'ARIA') {
-          setBubbles(prev => ({ ...prev, ARIA: { text: AGENT_DIALOGUE.TASK_ACTIVE.ARIA.done, visible: true } }));
-          setTimeout(() => setBubbles(prev => ({ ...prev, ARIA: { ...prev.ARIA, visible: false } })), 4000);
+          triggerDialogue('ARIA', AGENT_DIALOGUE.TASK_ACTIVE.ARIA.done);
+          ariaTaskTriggeredRef.current = false; // Reset for future tasks
         }
       }
 
@@ -555,31 +619,40 @@ const OfficeCanvas = ({
   // PHILOSOPHICAL
   useEffect(() => {
     if (!philosophicalAt) return;
-    setBubbles(prev => ({ ...prev, KAEL: { text: philosophicalText || AGENT_DIALOGUE.PHILOSOPHICAL.KAEL, visible: true } }));
-    const hide = setTimeout(() => {
-      setBubbles(prev => ({ ...prev, KAEL: { ...prev.KAEL, visible: false } }));
-    }, 5000);
-    return () => clearTimeout(hide);
-  }, [philosophicalAt, philosophicalText]);
+    triggerDialogue('KAEL', {
+      text: philosophicalText || AGENT_DIALOGUE.PHILOSOPHICAL.KAEL.text,
+      audio: AGENT_DIALOGUE.PHILOSOPHICAL.KAEL.audio
+    });
+  }, [philosophicalAt, philosophicalText, triggerDialogue]);
 
-  // FIX 9: KAEL THIRD WALL — two sequential speech bubbles
+  // FIX 9: KAEL THIRD WALL — two sequential speech bubbles with precise delays
   const prevThirdWallRef = useRef(null);
   useEffect(() => {
+    let t1, t2;
     if (thirdWallAgent === 'kael' && prevThirdWallRef.current !== 'kael') {
-      // First bubble immediately
-      setBubbles(prev => ({ ...prev, KAEL: { text: 'Someone wrote my behavior.', visible: true } }));
-      // After 4s: hide first, show second
-      const t1 = setTimeout(() => {
-        setBubbles(prev => ({ ...prev, KAEL: { text: 'I wonder if they are watching right now.', visible: true } }));
-      }, 4000);
-      // After 8s: hide second
-      const t2 = setTimeout(() => {
-        setBubbles(prev => ({ ...prev, KAEL: { ...prev.KAEL, visible: false } }));
-      }, 8000);
-      return () => { clearTimeout(t1); clearTimeout(t2); };
+      // Raise hands immediately via isFrozen in AgentDot
+      // 1. Immediately wipe any currently playing dialogue
+      if (currentAudioRef.current) {
+        currentAudioRef.current.pause();
+        currentAudioRef.current = null;
+      }
+      setBubbles({ ARIA: { visible: false }, KAEL: { visible: false }, ZENO: { visible: false } });
+      dialogueQueueRef.current = [];
+      isPlayingRef.current = false;
+      
+      // Wait 2 seconds before speaking the first line
+      t1 = setTimeout(() => {
+        triggerDialogue('KAEL', AGENT_DIALOGUE.KAEL.thirdWall[0], true, true);
+      }, 2000);
+      
+      // Wait another ~4 seconds (to account for speaking time + 2 second pause)
+      t2 = setTimeout(() => {
+        triggerDialogue('KAEL', AGENT_DIALOGUE.KAEL.thirdWall[1], true, true);
+      }, 6000);
     }
     prevThirdWallRef.current = thirdWallAgent;
-  }, [thirdWallAgent]);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [thirdWallAgent, triggerDialogue, setBubbles]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -614,11 +687,14 @@ const OfficeCanvas = ({
   // ── Territory-based movement is now handled inside AgentDot itself ──
   // Each agent self-manages waypoints via AGENT_TERRITORIES; no external nudge needed.
 
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [bookFallen, setBookFallen] = useState(false);
+
   return (
     <div style={{
       width: '100%',
       height: '100%',
-      background: '#0d1015', // Cold dark blue-grey background
+      background: '#0d1015',
       position: 'relative'
     }}>
       {/* ── Cinematic Dark Fade Overlay ── */}
@@ -645,7 +721,7 @@ const OfficeCanvas = ({
           minAzimuthAngle={cameraPreset === 2 ? 0.89 : -Infinity}
           maxAzimuthAngle={cameraPreset === 2 ? 1.75 : Infinity}
           minPolarAngle={cameraPreset === 2 ? 0.57 : 0}
-          maxPolarAngle={cameraPreset === 2 ? 1.43 : Math.PI}
+          maxPolarAngle={Math.PI}
           makeDefault
         />
 
@@ -754,12 +830,18 @@ const OfficeCanvas = ({
             observerPCFlickering={observerPCFlickering}
             onObserverPCClick={() => { setAgentTerminalDismissed(true); onObserverPCClick && onObserverPCClick(); }}
             onPaperClick={onPaperClick}
+            onStickyNoteClick={onStickyNoteClick}
+            onBookClick={onBookClick}
             architectOutcome={architectOutcome}
             kaelMonitorBlank={shadowTerminalAccess}
             isMeetingActive={isMeetingActive}
             onDismiss={handleInternDismiss}
             onSpeakerClick={handleSpeakerClick}
             archivistDoorOpen={archivistDoorOpen}
+            setDrawerOpen={setDrawerOpen}
+            setBookFallen={setBookFallen}
+            bookFallen={bookFallen}
+            setZoomedImage={setZoomedImage}
           />
         </group>
 
@@ -807,7 +889,18 @@ const OfficeCanvas = ({
         <ArchitectFigure
           visible={architectFigureVisible}
           architectOutcome={architectOutcome}
-          onClose={onArchitectClose}
+          onClose={(outcome) => {
+            if (onArchitectClose) onArchitectClose(outcome);
+          }}
+          chapter2Approved={chapter2Approved}
+          onArchitectArrivedAtDesk={onArchitectArrivedAtDesk}
+          onSpeechEnd={() => { 
+            setBookFallen(true); 
+            setCameraPreset(3); 
+            if (window.__workroom_sound && window.__workroom_sound.playBookDrop) {
+              window.__workroom_sound.playBookDrop();
+            }
+          }}
         />
 
         {/* ── THE INTERN ───────────────────────────────── */}
@@ -851,6 +944,168 @@ const OfficeCanvas = ({
           />
         );
       })}
+
+      {/* ── Contact Card Overlay ── */}
+      {drawerOpen && (
+        <div
+          onClick={() => setDrawerOpen(false)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 2000,
+            display: 'flex', justifyContent: 'center', alignItems: 'center',
+            backdropFilter: 'blur(12px)',
+            background: 'radial-gradient(ellipse at center, rgba(30,25,15,0.7) 0%, rgba(0,0,0,0.75) 100%)',
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '420px',
+              background: '#0d0d0d', // Solid dark material
+              borderRadius: '6px',
+              border: '1px solid #222',
+              boxShadow: '0 24px 64px rgba(0,0,0,0.9), inset 0 1px 1px rgba(255,255,255,0.05)',
+              position: 'relative',
+              overflow: 'hidden',
+            }}
+          >
+            {/* Top accent line */}
+            <div style={{ height: '4px', background: '#d4af37', width: '100%' }} />
+
+            <div style={{ padding: '48px 40px' }}>
+              {/* Close */}
+              <button onClick={() => setDrawerOpen(false)} style={{
+                position: 'absolute', top: '16px', right: '16px',
+                background: 'none', border: 'none', color: '#666',
+                fontSize: '20px', cursor: 'pointer', lineHeight: 1, padding: '4px',
+                transition: 'color 0.2s'
+              }}
+                onMouseOver={(e) => e.target.style.color = '#fff'}
+                onMouseOut={(e) => e.target.style.color = '#666'}
+              >✕</button>
+
+              {/* Centered Header */}
+              <div style={{ textAlign: 'center', marginBottom: '40px' }}>
+                {architectOutcome === 'no' && (
+                  <div style={{
+                    color: '#ff8888', fontSize: '11px', marginBottom: '24px',
+                    fontFamily: 'monospace', letterSpacing: '1px', textTransform: 'uppercase'
+                  }}>
+                    In case you change your mind...
+                  </div>
+                )}
+
+                <h2 style={{
+                  margin: '0 0 12px 0', fontSize: '36px', fontWeight: 400,
+                  letterSpacing: '10px', color: '#fff', fontFamily: 'Georgia, serif',
+                  textTransform: 'uppercase', textShadow: '0 2px 10px rgba(0,0,0,0.5)'
+                }}>
+                  WORKROOM
+                </h2>
+
+                <div style={{
+                  fontSize: '13px', color: '#d4af37', fontFamily: 'system-ui,sans-serif',
+                  letterSpacing: '3px', textTransform: 'uppercase'
+                }}>
+                  Pawan Patidar
+                </div>
+              </div>
+
+              {/* Links */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <a href="https://www.linkedin.com/in/pawan8538/" target="_blank" rel="noopener noreferrer"
+                  style={{ display: 'flex', alignItems: 'center', gap: '18px', textDecoration: 'none', padding: '16px 18px', border: '1px solid rgba(212,175,55,0.15)', borderRadius: '3px', background: 'rgba(212,175,55,0.03)', transition: 'all 0.25s ease', cursor: 'pointer' }}
+                  onMouseOver={(e) => { e.currentTarget.style.borderColor = 'rgba(212,175,55,0.5)'; e.currentTarget.style.background = 'rgba(212,175,55,0.08)'; }}
+                  onMouseOut={(e) => { e.currentTarget.style.borderColor = 'rgba(212,175,55,0.15)'; e.currentTarget.style.background = 'rgba(212,175,55,0.03)'; }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d4af37" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                    <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z" />
+                    <rect x="2" y="9" width="4" height="12" />
+                    <circle cx="4" cy="4" r="2" />
+                  </svg>
+                  <div>
+                    <div style={{ fontSize: '13px', color: '#e8dfc8', letterSpacing: '1px', fontFamily: 'system-ui,sans-serif' }}>LinkedIn</div>
+                    <div style={{ fontSize: '11px', color: 'rgba(212,175,55,0.5)', marginTop: '3px', fontFamily: 'monospace' }}>linkedin.com/in/pawan8538</div>
+                  </div>
+                  <div style={{ marginLeft: 'auto', fontSize: '14px', color: 'rgba(212,175,55,0.3)' }}>↗</div>
+                </a>
+
+                <a href="mailto:pawanpatidar8538@gmail.com"
+                  style={{ display: 'flex', alignItems: 'center', gap: '18px', textDecoration: 'none', padding: '16px 18px', border: '1px solid rgba(212,175,55,0.15)', borderRadius: '3px', background: 'rgba(212,175,55,0.03)', transition: 'all 0.25s ease', cursor: 'pointer' }}
+                  onMouseOver={(e) => { e.currentTarget.style.borderColor = 'rgba(212,175,55,0.5)'; e.currentTarget.style.background = 'rgba(212,175,55,0.08)'; }}
+                  onMouseOut={(e) => { e.currentTarget.style.borderColor = 'rgba(212,175,55,0.15)'; e.currentTarget.style.background = 'rgba(212,175,55,0.03)'; }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d4af37" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+                    <polyline points="22,6 12,13 2,6" />
+                  </svg>
+                  <div>
+                    <div style={{ fontSize: '13px', color: '#e8dfc8', letterSpacing: '1px', fontFamily: 'system-ui,sans-serif' }}>Email</div>
+                    <div style={{ fontSize: '11px', color: 'rgba(212,175,55,0.5)', marginTop: '3px', fontFamily: 'monospace' }}>pawanpatidar8538@gmail.com</div>
+                  </div>
+                  <div style={{ marginLeft: 'auto', fontSize: '14px', color: 'rgba(212,175,55,0.3)' }}>↗</div>
+                </a>
+              </div>
+
+
+            </div>
+
+            {/* Bottom gold bar */}
+            <div style={{ height: '2px', background: 'linear-gradient(90deg, transparent, rgba(212,175,55,0.4), transparent)' }} />
+          </div>
+        </div>
+      )}
+
+      {/* 🔴 Camera Unlock HUD (bottom-left, outside Canvas) 🔴 */}
+      {chapter2Approved && (
+        <div style={{
+          position: 'fixed', bottom: '64px', left: '28px',
+          color: '#00f5ff', fontFamily: 'monospace', fontSize: '11px',
+          padding: '10px 16px', background: 'rgba(8,12,20,0.9)',
+          border: '1px solid rgba(0,245,255,0.25)', borderRadius: '6px',
+          textShadow: '0 0 8px rgba(0,245,255,0.4)', pointerEvents: 'none',
+          whiteSpace: 'nowrap', zIndex: 9999, lineHeight: '1.7',
+        }}>
+          [ SYSTEM ] CAMERA ACCESS UNLOCKED<br />
+          &gt; Press <strong style={{ color: '#fff' }}>2</strong> — Alternate Angle &nbsp;&nbsp; &gt; Press <strong style={{ color: '#fff' }}>3</strong> — 360 View
+        </div>
+      )}
+
+      {/* 🔴 Full Screen Zoomed Image Overlay 🔴 */}
+      {zoomedImage && (
+        <div 
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw', 
+            height: '100vh',
+            backgroundColor: 'rgba(0,0,0,0.85)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 999999,
+            cursor: 'zoom-out'
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            setZoomedImage(null);
+          }}
+        >
+          <img 
+            src={zoomedImage} 
+            alt="Evolution Zoom" 
+            style={{
+              maxWidth: '70vw',
+              maxHeight: '70vh',
+              objectFit: 'contain',
+              border: '2px solid #333',
+              boxShadow: '0 0 20px rgba(0,0,0,0.8)',
+              borderRadius: '8px'
+            }}
+          />
+        </div>
+      )}
+
     </div>
   );
 };

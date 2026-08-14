@@ -115,9 +115,13 @@ const AgentDot = ({ name, role, color, symbol, x, y, status, task, isSelected, o
         rightArmRef.current.rotation.x = Math.PI / 1.2;
         rightArmRef.current.rotation.z = Math.PI / 6;
       }
-
+      
+      // The agent freezes and looks at the camera — no jitter
       return;
     }
+
+    // Reset scale if recovering from glitch
+    meshRef.current.scale.lerp(new THREE.Vector3(0.6, 0.6, 0.6), 0.1);
 
     // ── Glancing behavior ─────────────────────────────────
     if (overrideLookAt) {
@@ -291,7 +295,7 @@ const AgentDot = ({ name, role, color, symbol, x, y, status, task, isSelected, o
         
 
 
-        <Html transform={false} center position={[0, 2.8, 0]} style={{ pointerEvents: 'none' }}>
+        <Html transform={false} center position={[0, 2.8, 0]} style={{ pointerEvents: 'none' }} zIndexRange={[100, 0]}>
           <div style={{
             color: color,
             fontFamily: 'monospace',

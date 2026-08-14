@@ -11,6 +11,8 @@ import GateScene from './components/UI/GateScene';
 import { useSoundEngine } from './hooks/useSoundEngine';
 import DeliverableScreen from './components/UI/DeliverableScreen';
 import Day47Modal from './components/UI/Day47Modal';
+import StillNotDoneModal from './components/UI/StillNotDoneModal';
+import BookReader from './components/UI/BookReader';
 
 function App() {
   const { agents, logs, isFourthWallTriggered, isDeliverableReady, isMeetingActive, isConnected, thirdWallAgent, cycle, meetingStartedAt, ariaTaskAssignedAt, fourthWallAt, philosophicalAt, philosophicalText, terminalContent, socketAriaCabinLightOff, shadowTerminalAccess, socket } = useSocket();
@@ -28,6 +30,8 @@ function App() {
   const [showDeliverable, setShowDeliverable] = useState(false);
   const [deliverableFinished, setDeliverableFinished] = useState(false);
   const [showDay47Modal, setShowDay47Modal] = useState(false);
+  const [showStickyNoteModal, setShowStickyNoteModal] = useState(false);
+  const [showBookModal, setShowBookModal] = useState(false);
   const [showTerminal, setShowTerminal] = useState(false);
 
   // ── Architect figure states ──
@@ -104,12 +108,19 @@ function App() {
   useEffect(() => {
     if (isDeliverableReady && !showDeliverable && !deliverableFinished) {
       setObserverPCFlickering(true);
+      if (window.__workroom_sound && window.__workroom_sound.playMonitorFlicker) {
+        window.__workroom_sound.playMonitorFlicker();
+      }
     }
   }, [isDeliverableReady, showDeliverable, deliverableFinished]);
 
   // Scattered logs after third wall fires
   useEffect(() => {
     if (thirdWallAgent === 'kael') {
+      if (window.__workroom_sound && window.__workroom_sound.stopAllSounds) {
+        window.__workroom_sound.stopAllSounds();
+      }
+      // third-wall-silence actually contains the hum sound, so we omit playing it to enforce true silence.
       if (window.__workroom_pushLog) {
         window.__workroom_pushLog({
           agentId: 'ARCHIVIST',
@@ -139,6 +150,11 @@ function App() {
     const handleThirdWallComplete = () => {
       console.log('[App] Third Wall sequence completed. Unlocking Goal Input.');
       setHasThirdWallCompleted(true);
+      
+      // Stop silence and resume normal sounds
+      if (window.__workroom_sound && window.__workroom_sound.startFoundationSounds) {
+        window.__workroom_sound.startFoundationSounds();
+      }
     };
     socket.on('agent:thirdWallComplete', handleThirdWallComplete);
     return () => socket.off('agent:thirdWallComplete', handleThirdWallComplete);
@@ -160,11 +176,13 @@ function App() {
     };
   }, []);
 
+  const [hasSubmittedGoal, setHasSubmittedGoal] = useState(false);
+
   useEffect(() => {
-    if (isMeetingActive === false && isMeetingActive !== null && gatePassed && hasThirdWallCompleted && !showGoalInput) {
+    if (isMeetingActive === false && isMeetingActive !== null && gatePassed && hasThirdWallCompleted && !showGoalInput && !hasSubmittedGoal) {
       setTimeout(() => setShowGoalInput(true), 3000);
     }
-  }, [isMeetingActive, gatePassed, hasThirdWallCompleted, showGoalInput]);
+  }, [isMeetingActive, gatePassed, hasThirdWallCompleted, showGoalInput, hasSubmittedGoal]);
 
   // ── Architect summon callback — fired by FourthWall.jsx ──
   const handleArchitectSummon = useCallback(() => {
@@ -193,8 +211,10 @@ function App() {
 
   const handleChapter2RequestSubmit = (approved) => {
     setShowChapter2RequestForm(false);
-    if (approved) {
+    if (approved === true || approved === 'approved') {
       setChapter2Approved(true);
+    } else if (approved === 'student') {
+      setChapter2Approved('student');
     } else {
       setTimeout(() => {
         setArchitectFigureVisible(false);
@@ -208,19 +228,16 @@ function App() {
     console.log('[App] Architect sequence complete. Outcome:', outcome);
     setArchitectOutcome(outcome || 'no');
 
-    if (outcome === 'no') {
-      setTimeout(() => {
-        setArchitectFigureVisible(false);
-        setShowArchitect(false);
-      }, 5000);
-    }
+    // Do not hide the architect if outcome is 'no' - keep him visible
   };
 
   const handleObserverPCClick = () => {
     if (observerPCFlickering) {
       setObserverPCFlickering(false);
       setShowDeliverable(true);
-      // Optional: Play CRT sound here if added to SOUNDS.js later
+      if (window.__workroom_sound && window.__workroom_sound.stopMonitorFlicker) {
+        window.__workroom_sound.stopMonitorFlicker();
+      }
     }
   };
 
@@ -234,10 +251,12 @@ function App() {
   };
 
   if (!gatePassed) {
-    return <GateScene onComplete={() => {
-      console.log('[GateScene] onComplete fired. Switching to main office canvas.');
-      setGatePassed(true);
-    }} />;
+    return <GateScene 
+      onComplete={() => {
+        console.log('[GateScene] onComplete fired. Switching to main office canvas.');
+        setGatePassed(true);
+      }} 
+    />;
   }
 
   return (
@@ -261,6 +280,8 @@ function App() {
         observerPCFlickering={observerPCFlickering}
         onObserverPCClick={handleObserverPCClick}
         onPaperClick={() => setShowDay47Modal(true)}
+        onStickyNoteClick={() => setShowStickyNoteModal(true)}
+        onBookClick={() => setShowBookModal(true)}
         showTerminal={showTerminal}
         onTerminalClose={() => {
           setShowTerminal(false);
@@ -288,7 +309,7 @@ function App() {
       <AgentPanel agents={agents} logs={logs} />
 
       {/* Goal input bar */}
-      {showGoalInput && <GoalInput socket={socket} isMeetingActive={isMeetingActive} />}
+      {showGoalInput && <GoalInput socket={socket} isMeetingActive={isMeetingActive} onSubmitGoal={() => { setHasSubmittedGoal(true); setShowGoalInput(false); }} />}
 
       {/* Fourth wall overlay (Sequencer) — starts only after Deliverable finishes */}
       {isFourthWallTriggered && deliverableFinished && !showArchitect && (
@@ -302,9 +323,19 @@ function App() {
         <DeliverableScreen terminalContent={terminalContent} onClose={handleDeliverableClose} />
       )}
 
-      {/* Day 47 modal */}
+      {/* Day 47 paper note */}
       {showDay47Modal && (
         <Day47Modal onClose={() => setShowDay47Modal(false)} />
+      )}
+
+      {/* Sticky Note paper modal */}
+      {showStickyNoteModal && (
+        <StillNotDoneModal onClose={() => setShowStickyNoteModal(false)} />
+      )}
+
+      {/* Book reader */}
+      {showBookModal && (
+        <BookReader onClose={() => setShowBookModal(false)} />
       )}
 
       {/* Chapter 2 Authorization Form (End of Chapter 1) */}
@@ -314,6 +345,21 @@ function App() {
 
       {/* The Observer — renders nothing */}
       <TheObserver />
+
+      {/* CAMERA ACCESS UNLOCKED MESSAGE FOR ALL ROLES AFTER FORM SUBMIT */}
+      {chapter2Approved && (
+        <div style={{
+          position: 'fixed', bottom: '64px', left: '28px',
+          color: '#00f5ff', fontFamily: 'monospace', fontSize: '11px',
+          padding: '10px 16px', background: 'rgba(8,12,20,0.9)',
+          border: '1px solid rgba(0,245,255,0.25)', borderRadius: '6px',
+          textShadow: '0 0 8px rgba(0,245,255,0.4)', pointerEvents: 'none',
+          whiteSpace: 'nowrap', zIndex: 9999, lineHeight: '1.7',
+        }}>
+          [ SYSTEM ] CAMERA ACCESS UNLOCKED<br />
+          &gt; Press <strong style={{ color: '#fff' }}>2</strong> — Alternate Angle &nbsp;&nbsp; &gt; Press <strong style={{ color: '#fff' }}>3</strong> — 360 View
+        </div>
+      )}
     </div>
   );
 }
