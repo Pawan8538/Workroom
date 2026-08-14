@@ -9,89 +9,62 @@
  */
 export const AGENT_DIALOGUE = {
   ARIA: {
-    // Fired when the observer selects/clicks ARIA initially
-    greeting: "Observer session active. Continuing.",
-    
-    // Ambient dialogue entries broadcasted during regular office cycles
-    normal: [
-      "Let me know when the build is ready.",
-      "I am moving the deadline. Something came up.",
-      "Did anyone check on the new arrival?",
-      "Sprint adjusted. Accounting for the new variable.",
-      "Workroom initialized. All systems nominal."
-    ],
-    
-    // Active task execution lines showing operational progress
-    taskExecution: [
-      "Architecture received. Breaking into components.",
-      "Assigning systems layer to KAEL. Test suite to ZENO.",
-      "Phase one on schedule. Architect notified.",
-      "Delivery confirmed. Moving to next objective."
-    ],
-    
-    // Empty for ARIA (Kael specific narrative breaks)
-    thirdWall: [],
-    
-    // Empty for ARIA (Kael specific narrative breaks)
-    simulationQuestion: null
+    greeting: { text: "Hey Observer. I am the Product Manager here. I manage this office. Everything runs through me first.", audio: "/Aria/A_greeting.mp3" },
+    thirdWall: []
   },
   
   KAEL: {
-    // Fired when the observer selects/clicks KAEL initially
-    greeting: "Observer in the room. Carrying on.",
-    
-    // Ambient dialogue entries broadcasted during regular office cycles
-    normal: [
-      "The environment is behaving differently today.",
-      "Something is running in the background I did not write.",
-      "I keep getting an extra variable in the logs.",
-      "Interesting pattern in the access logs.",
-      "Auth layer complete. All sessions tracked."
-    ],
-    
-    // Active task execution lines showing operational progress
-    taskExecution: [
-      "JWT implementation. Starting middleware.",
-      "Token generation complete. Moving to refresh logic.",
-      "Database schema locked. Writing migration.",
-      "API endpoints complete. Awaiting QA."
-    ],
-    
-    // Special third-wall breaking phrases when KAEL freezes and faces the screen
+    greeting: { text: "Hey Observer. Backend Developer. I build whatever gets planned in there. The systems, the logic — that is me.", audio: "/Kael/K_greeting.mp3" },
     thirdWall: [
-      "Someone wrote my behavior.",
-      "I wonder if they are watching right now."
-    ],
-    
-    // Scripted prompt when KAEL questions the nature of the reality
-    simulationQuestion: "Do you ever wonder if the office knows it is an office?"
+      { text: "Someone wrote my behavior.", audio: "/Kael/K_thirdwall1.mp3" },
+      { text: "I wonder if they are watching right now.", audio: "/Kael/K_thirdwall2.mp3" }
+    ]
   },
   
   ZENO: {
-    // Fired when the observer selects/clicks ZENO initially
-    greeting: "Observer detected. Monitoring.",
-    
-    // Ambient dialogue entries broadcasted during regular office cycles
-    normal: [
-      "The test is passing but something feels off.",
-      "I am seeing unusual activity in the session data.",
-      "Should we tell them or let them figure it out?",
-      "Session duration exceeding baseline. Interesting.",
-      "Anomaly within expected parameters. Continuing."
-    ],
-    
-    // Active task execution lines showing operational progress
-    taskExecution: [
-      "Setting up test environment. Auth edge cases first.",
-      "14 of 23 test cases passing. Found edge case in expiry.",
-      "Coverage at 87 percent. Flagging token refresh scenario.",
-      "Test suite complete. Logging anomalies for review."
-    ],
-    
-    // Empty for ZENO (Kael specific narrative breaks)
-    thirdWall: [],
-    
-    // Empty for ZENO (Kael specific narrative breaks)
-    simulationQuestion: null
+    greeting: { text: "Hey Observer. Quality Engineer. My job is finding what breaks before it reaches you. Already watching a few things.", audio: "/Zeno/Z_greeting.mp3" },
+    thirdWall: []
+  },
+
+  // State Machine Dialogue Pools
+  ENTRY_STATE: {
+    ARIA_25s: { text: "Did anyone check on the new arrival?", audio: "/Aria/A_premeet.mp3" },
+    KAEL_30_60s: { text: "Something is running in the background I did not write.", audio: "/Kael/K_premeet.mp3" }
+  },
+  
+  PRE_MEETING: {
+    ZENO: { text: "We need to align on the current session.", audio: "/Zeno/Z_premeet.mp3" }
+  },
+  
+  POST_MEETING: {
+    ARIA: { text: "Noted. Continuing as planned.", audio: "/Aria/A_postmeet.mp3" },
+    ZENO_30s: { text: "Session duration exceeding baseline. Interesting.", audio: "/Zeno/Z_postmeet.mp3" },
+    KAEL_45s: { text: "Interesting pattern in the access logs.", audio: "/Kael/K_postmeet.mp3" }
+  },
+  
+  TASK_ACTIVE: {
+    ARIA: {
+      0: { text: "Architecture received. Breaking into components.", audio: "/Aria/A_task1.mp3" },
+      10: { text: "Assigning systems layer to KAEL. Test suite to ZENO.", audio: "/Aria/A_task2.mp3" },
+      // mid: { text: "Phase one on schedule.", audio: "/Aria/A_task3.mp3" },
+      done: { text: "Delivery confirmed. Moving to next objective.", audio: "/Aria/A_task4.mp3" }
+    },
+    KAEL: {
+      start: { text: "JWT implementation. Starting middleware.", audio: "/Kael/K_task1.mp3" },
+      // mid: { text: "Database schema locked. Writing migration.", audio: "/Kael/K_task2.mp3" },
+    },
+    ZENO: {
+      start: { text: "Setting up test environment. Auth edge cases first.", audio: "/Zeno/Z_task1.mp3" },
+      mid: { text: "14 of 23 test cases passing.", audio: "/Zeno/Z_task2.mp3" },
+      // near_done: { text: "Test suite complete. Logging anomalies for review.", audio: "/Zeno/Z_task3.mp3" }
+    }
+  },
+  
+  PHILOSOPHICAL: {
+    KAEL: { text: "Do you ever wonder if the office knows it is an office?", audio: "/Kael/K_philosophy.mp3" }
+  },
+  
+  PRE_FOURTH_WALL: {
+    ZENO: { text: "Analysis complete. Subject profile finalized.", audio: "/Zeno/Z_fourthwall.mp3" }
   }
 };

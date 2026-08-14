@@ -18,8 +18,8 @@ const taskSchema = new mongoose.Schema({
   estimatedCycles: { type: Number, required: true },
   status: { 
     type: String, 
-    default: 'Pending',
-    enum: ['Pending', 'In Progress', 'Done', 'Failed']
+    default: 'pending',
+    enum: ['pending', 'working', 'completed', 'failed', 'Pending', 'In Progress', 'Done', 'Failed']
   },
   goal: { type: mongoose.Schema.Types.ObjectId, ref: 'Goal' },
   createdAt: { type: Date, default: Date.now }

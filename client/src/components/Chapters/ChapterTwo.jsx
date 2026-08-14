@@ -1,209 +1,204 @@
-// ─────────────────────────────────────────────────────────────
-// client/src/components/Chapters/ChapterTwo.jsx
-// Chapter 2 Access Gate & Waitlist Polling
-// ─────────────────────────────────────────────────────────────
-// Displays live waitlist count from GET /api/chapter2/waitlist-count,
-// polling every 30 seconds.
-// Allows visitor to submit access request via POST /api/chapter2/request.
-// Silently logs the request to the Doorkeeper tracking system.
-// ─────────────────────────────────────────────────────────────
+import React, { useState } from 'react';
 
-import React, { useState, useEffect } from 'react';
+export default function ChapterTwo({ onSubmitForm }) {
+  const [formData, setFormData] = useState({ name: '', role: '', company: '', linkedin: '' });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [resultMsg, setResultMsg] = useState('');
+  const [resultGranted, setResultGranted] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
 
-const ChapterTwo = () => {
-  const [waitlistCount, setWaitlistCount] = useState(0);
-  const [requested, setRequested] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState('');
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!formData.name || !formData.role || !formData.company) return;
+    setIsSubmitting(true);
 
-  // ── Poll waitlist count every 30 seconds ──
-  useEffect(() => {
-    const fetchCount = async () => {
-      try {
-        const res = await fetch('http://localhost:5000/api/chapter2/waitlist-count');
-        if (res.ok) {
-          const data = await res.json();
-          setWaitlistCount(data.count || 0);
-        }
-      } catch (err) {
-        // Silent fail — polling must never disrupt the UI
-      }
-    };
-
-    fetchCount(); // Initial fetch
-    const interval = setInterval(fetchCount, 30000); // Every 30s
-    return () => clearInterval(interval);
-  }, []);
-
-  // ── Handle Request Access ──
-  const handleRequestAccess = async () => {
-    if (loading || requested) return;
-    setLoading(true);
+    const role = formData.role.toLowerCase();
+    if (role === 'student' && !formData.linkedin) {
+      setErrorMsg('Please provide LinkedIn or Contact details.');
+      setIsSubmitting(false);
+      return;
+    }
+    setErrorMsg('');
 
     try {
-      // Retrieve active session ID from Doorkeeper beacon or fallback
       const sessionId = window.__doorkeeper?.sessionId || 'sess_' + Math.random().toString(36).substr(2, 9);
-
-      const res = await fetch('http://localhost:5000/api/chapter2/request', {
+      await fetch('http://localhost:5000/api/chapter2/request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId })
-      });
+        body: JSON.stringify({ name: formData.name, role: formData.role, whatBuilding: formData.company, linkedin: formData.linkedin, sessionId })
+      }).catch(() => {});
 
-      if (res.ok) {
-        setRequested(true);
-        setMessage('Your request has been logged. The Doorkeeper will decide.');
-        // Log access request to Doorkeeper
-        window.__doorkeeper?.logChapter2Request();
-        // Optimistically increment local waitlist count
-        setWaitlistCount(prev => prev + 1);
+      if (role === 'student') {
+        setResultGranted(false);
+        setResultMsg('Credentials received. We will contact you with Chapter 2 access later. You can still observe the Workroom and find hidden details.');
+        setTimeout(() => onSubmitForm('student'), 6000);
       } else {
-        setMessage('Failed to submit request. The gate remains locked.');
+        setResultGranted(true);
+        setResultMsg('Identity Confirmed. Access Granted.');
+        setTimeout(() => onSubmitForm(true), 2000);
       }
     } catch (err) {
-      setMessage('Network error. The simulation is unresponsive.');
-    } finally {
-      setLoading(false);
+      onSubmitForm(false);
     }
+  };
+
+  const inputStyle = {
+    width: '100%',
+    background: 'rgba(10,8,4,0.8)',
+    border: '1px solid rgba(212,175,55,0.2)',
+    color: '#f0e8d0',
+    padding: '13px 16px',
+    fontFamily: 'monospace',
+    fontSize: '13px',
+    outline: 'none',
+    borderRadius: '2px',
+    transition: 'border-color 0.25s ease, box-shadow 0.25s ease',
+    boxSizing: 'border-box',
+    position: 'relative',
+    zIndex: 10,
+    cursor: 'text',
   };
 
   return (
     <div style={{
-      width: '100vw',
-      height: '100vh',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: '#050508',
-      color: '#f0f0f5',
-      fontFamily: "'Inter', sans-serif",
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      zIndex: 300,
-      boxSizing: 'border-box',
-      padding: '20px',
-      textAlign: 'center',
-      userSelect: 'none'
+      position: 'fixed', inset: 0, zIndex: 100000,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      backdropFilter: 'blur(12px)',
+      background: 'radial-gradient(ellipse at center, rgba(20,14,5,0.85) 0%, rgba(0,0,0,0.92) 100%)',
     }}>
-      {/* Top Accent Line */}
       <div style={{
-        width: '60px',
-        height: '2px',
-        background: '#00f5ff',
-        marginBottom: '30px',
-        boxShadow: '0 0 15px #00f5ff'
-      }} />
-
-      <h1 style={{
-        fontSize: '2.2rem',
-        fontWeight: 300,
-        letterSpacing: '4px',
-        margin: '0 0 15px 0',
-        color: '#ffffff'
-      }}>
-        CHAPTER II // THE GATE
-      </h1>
-
-      <p style={{
-        color: '#8888a0',
-        fontSize: '1rem',
-        maxWidth: '500px',
-        lineHeight: '1.6',
-        margin: '0 0 40px 0',
-        fontWeight: 300
-      }}>
-        The simulation has concluded its initial phase. Access to the deeper architectural layers is currently restricted.
-      </p>
-
-      {/* Live Waitlist Display */}
-      <div style={{
-        background: 'rgba(255, 255, 255, 0.02)',
-        border: '1px solid rgba(255, 255, 255, 0.08)',
-        padding: '15px 30px',
+        width: '420px',
+        background: '#0d0d0d', // Solid dark material
         borderRadius: '6px',
-        marginBottom: '40px',
-        backdropFilter: 'blur(8px)',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '15px'
+        border: '1px solid #222',
+        boxShadow: '0 24px 64px rgba(0,0,0,0.9), inset 0 1px 1px rgba(255,255,255,0.05)',
+        position: 'relative', overflow: 'hidden',
       }}>
-        <div style={{
-          width: '8px',
-          height: '8px',
-          borderRadius: '50%',
-          background: '#00f5ff',
-          boxShadow: '0 0 10px #00f5ff',
-          animation: 'pulse 2s infinite'
-        }} />
-        <span style={{ fontSize: '0.9rem', color: '#aaa', letterSpacing: '1px', textTransform: 'uppercase' }}>
-          Live Status: <strong style={{ color: '#00f5ff', fontFamily: 'monospace', fontSize: '1.1rem' }}>{waitlistCount}</strong> people are waiting
-        </span>
+        {/* Top accent */}
+        <div style={{ height: '4px', background: '#d4af37', width: '100%' }} />
+
+        <div style={{ padding: '48px 40px' }}>
+          {/* Header */}
+          <div style={{ textAlign: 'center', marginBottom: '40px' }}>
+            <div style={{ fontSize: '10px', letterSpacing: '3px', color: 'rgba(212,175,55,0.5)', fontFamily: 'monospace', marginBottom: '16px' }}>
+              CHAPTER 2 ACCESS REQUEST
+            </div>
+            <h2 style={{ margin: '0 0 12px 0', fontSize: '28px', fontWeight: 400, letterSpacing: '8px', color: '#fff', fontFamily: 'Georgia, serif', textTransform: 'uppercase', textShadow: '0 2px 10px rgba(0,0,0,0.5)' }}>
+              Authorization
+            </h2>
+          </div>
+
+          {resultMsg ? (
+            <div style={{
+              padding: '20px',
+              border: `1px solid ${resultGranted ? 'rgba(212,175,55,0.4)' : 'rgba(255,255,255,0.1)'}`,
+              borderRadius: '2px',
+              background: resultGranted ? 'rgba(212,175,55,0.06)' : 'rgba(255,255,255,0.03)',
+              color: resultGranted ? '#d4af37' : '#aaa',
+              fontFamily: 'monospace', fontSize: '13px', lineHeight: '1.7', letterSpacing: '0.5px',
+            }}>
+              {resultGranted ? '▶ ' : '— '}{resultMsg}
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '22px', position: 'relative', zIndex: 100 }}>
+              <div style={{ position: 'relative', zIndex: 110 }}>
+                <label style={{ display: 'block', fontSize: '9px', color: 'rgba(212,175,55,0.5)', letterSpacing: '3px', marginBottom: '8px', fontFamily: 'monospace', pointerEvents: 'none' }}>
+                  FULL NAME
+                </label>
+                <input
+                  type="text" required value={formData.name}
+                  onChange={e => setFormData({ ...formData, name: e.target.value })}
+                  style={inputStyle}
+                  onFocus={e => { e.target.style.borderColor = 'rgba(212,175,55,0.6)'; e.target.style.boxShadow = '0 0 0 1px rgba(212,175,55,0.1)'; }}
+                  onBlur={e => { e.target.style.borderColor = 'rgba(212,175,55,0.2)'; e.target.style.boxShadow = 'none'; }}
+                />
+              </div>
+
+              <div style={{ position: 'relative', zIndex: 110 }}>
+                <label style={{ display: 'block', fontSize: '9px', color: 'rgba(212,175,55,0.5)', letterSpacing: '3px', marginBottom: '8px', fontFamily: 'monospace', pointerEvents: 'none' }}>
+                  DESIGNATION
+                </label>
+                <select
+                  required value={formData.role}
+                  onChange={e => setFormData({ ...formData, role: e.target.value })}
+                  style={{ ...inputStyle, cursor: 'pointer', appearance: 'none', WebkitAppearance: 'none' }}
+                  onFocus={e => { e.target.style.borderColor = 'rgba(212,175,55,0.6)'; e.target.style.boxShadow = '0 0 0 1px rgba(212,175,55,0.1)'; }}
+                  onBlur={e => { e.target.style.borderColor = 'rgba(212,175,55,0.2)'; e.target.style.boxShadow = 'none'; }}
+                >
+                  <option value="">Select Role...</option>
+                  <option value="Student">Student</option>
+                  <option value="CEO/CTO">CEO / CTO</option>
+                  <option value="Product Manager">Product Manager</option>
+                  <option value="Recruiter">Recruiter / Talent</option>
+                  <option value="Senior Engineer">Senior Engineer</option>
+                </select>
+              </div>
+
+              <div style={{ position: 'relative', zIndex: 110 }}>
+                <label style={{ display: 'block', fontSize: '9px', color: 'rgba(212,175,55,0.5)', letterSpacing: '3px', marginBottom: '8px', fontFamily: 'monospace', pointerEvents: 'none' }}>
+                  COMPANY / INSTITUTION
+                </label>
+                <input
+                  type="text" required value={formData.company}
+                  onChange={e => setFormData({ ...formData, company: e.target.value })}
+                  style={inputStyle}
+                  onFocus={e => { e.target.style.borderColor = 'rgba(212,175,55,0.6)'; e.target.style.boxShadow = '0 0 0 1px rgba(212,175,55,0.1)'; }}
+                  onBlur={e => { e.target.style.borderColor = 'rgba(212,175,55,0.2)'; e.target.style.boxShadow = 'none'; }}
+                />
+              </div>
+
+              <div style={{ position: 'relative', zIndex: 110 }}>
+                {errorMsg && (
+                  <div style={{
+                    marginBottom: '10px',
+                    color: '#ff4444',
+                    fontFamily: 'monospace',
+                    fontSize: '11px',
+                    letterSpacing: '0.5px'
+                  }}>
+                    — {errorMsg}
+                  </div>
+                )}
+                <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '9px', color: 'rgba(212,175,55,0.5)', letterSpacing: '3px', marginBottom: '8px', fontFamily: 'monospace', pointerEvents: 'none' }}>
+                  <span>LINKEDIN URL</span>
+                  <span style={{ fontSize: '8px', color: 'rgba(212,175,55,0.3)', letterSpacing: '1px' }}>(OPTIONAL)</span>
+                </label>
+                <input
+                  type="url" value={formData.linkedin}
+                  onChange={e => setFormData({ ...formData, linkedin: e.target.value })}
+                  style={inputStyle}
+                  placeholder="https://linkedin.com/in/..."
+                  onFocus={e => { e.target.style.borderColor = 'rgba(212,175,55,0.6)'; e.target.style.boxShadow = '0 0 0 1px rgba(212,175,55,0.1)'; }}
+                  onBlur={e => { e.target.style.borderColor = 'rgba(212,175,55,0.2)'; e.target.style.boxShadow = 'none'; }}
+                />
+              </div>
+
+              <button
+                type="submit" disabled={isSubmitting}
+                style={{
+                  marginTop: '8px',
+                  background: isSubmitting ? 'rgba(212,175,55,0.08)' : 'rgba(212,175,55,0.06)',
+                  border: '1px solid rgba(212,175,55,0.5)',
+                  color: '#d4af37',
+                  padding: '14px',
+                  cursor: isSubmitting ? 'default' : 'pointer',
+                  fontFamily: 'monospace',
+                  letterSpacing: '4px',
+                  fontSize: '12px',
+                  transition: 'all 0.25s ease',
+                  borderRadius: '2px',
+                  width: '100%',
+                }}
+                onMouseEnter={e => { if (!isSubmitting) { e.target.style.background = 'rgba(212,175,55,0.15)'; e.target.style.boxShadow = '0 0 20px rgba(212,175,55,0.15)'; } }}
+                onMouseLeave={e => { e.target.style.background = 'rgba(212,175,55,0.06)'; e.target.style.boxShadow = 'none'; }}
+              >
+                {isSubmitting ? 'VERIFYING...' : 'REQUEST ACCESS'}
+              </button>
+            </form>
+          )}
+
+        </div>
       </div>
-
-      {/* Access Request Button */}
-      <button
-        onClick={handleRequestAccess}
-        disabled={loading || requested}
-        style={{
-          padding: '14px 40px',
-          background: requested ? 'rgba(0, 255, 136, 0.1)' : 'transparent',
-          border: `1px solid ${requested ? '#00ff88' : 'rgba(0, 245, 255, 0.3)'}`,
-          color: requested ? '#00ff88' : '#00f5ff',
-          fontSize: '0.85rem',
-          fontFamily: 'monospace',
-          letterSpacing: '3px',
-          cursor: (loading || requested) ? 'default' : 'pointer',
-          borderRadius: '4px',
-          transition: 'all 0.3s ease',
-          boxShadow: requested ? '0 0 20px rgba(0, 255, 136, 0.2)' : 'none'
-        }}
-        onMouseEnter={(e) => {
-          if (!loading && !requested) {
-            e.target.style.borderColor = '#00f5ff';
-            e.target.style.background = 'rgba(0, 245, 255, 0.05)';
-            e.target.style.boxShadow = '0 0 15px rgba(0, 245, 255, 0.2)';
-          }
-        }}
-        onMouseLeave={(e) => {
-          if (!loading && !requested) {
-            e.target.style.borderColor = 'rgba(0, 245, 255, 0.3)';
-            e.target.style.background = 'transparent';
-            e.target.style.boxShadow = 'none';
-          }
-        }}
-      >
-        {loading ? 'TRANSMITTING...' : (requested ? 'REQUEST LOGGED ✓' : 'REQUEST ACCESS')}
-      </button>
-
-      {/* Feedback Message */}
-      {message && (
-        <p style={{
-          marginTop: '25px',
-          fontSize: '0.85rem',
-          color: requested ? '#00ff88' : '#ffaa00',
-          fontFamily: 'monospace',
-          letterSpacing: '1px',
-          animation: 'fadeIn 0.5s ease'
-        }}>
-          {message}
-        </p>
-      )}
-
-      <style>{`
-        @keyframes pulse {
-          0% { opacity: 0.4; transform: scale(0.95); }
-          50% { opacity: 1; transform: scale(1.05); }
-          100% { opacity: 0.4; transform: scale(0.95); }
-        }
-        @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(10px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-      `}</style>
     </div>
   );
-};
-
-export default ChapterTwo;
+}

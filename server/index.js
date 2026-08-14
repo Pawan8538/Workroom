@@ -6,7 +6,7 @@ import dotenv from 'dotenv';
 import connectDB from './config/db.js';
 import goalRoutes from './routes/goal.routes.js';
 import agentRoutes from './routes/agent.routes.js';
-import chapterRoutes from './routes/chapter.routes.js';
+import chapter2Routes from './routes/chapter2.routes.js';
 import doorkeeperRoutes from './routes/doorkeeper.routes.js';
 import visitorTracker from './middleware/visitorTracker.js';
 import { setupSocket } from './socket/index.js';
@@ -17,7 +17,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: 'http://localhost:5173',
+    origin: process.env.CLIENT_URL || 'http://localhost:5173',
     methods: ['GET', 'POST'],
   }
 });
@@ -26,14 +26,16 @@ const io = new Server(server, {
 connectDB(); 
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: process.env.CLIENT_URL || 'http://localhost:5173'
+}));
 app.use(express.json());
 app.use(visitorTracker);
 
 // Routes
 app.use('/api/goal', goalRoutes);
 app.use('/api/agents', agentRoutes);
-app.use('/api/chapter2', chapterRoutes);
+app.use('/api/chapter2', chapter2Routes);
 app.use('/', doorkeeperRoutes);
 
 // Socket.io

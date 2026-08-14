@@ -6,6 +6,7 @@
 //   agents               — live array of agent objects
 //   logs                 — live array of log entries (including shadow logs)
 //   isFourthWallTriggered — boolean, true when the dark overlay fires
+//   isMeetingActive       — boolean, true during spontaneous meeting (cycle 5)
 //   socket               — raw socket instance (for emitting from components)
 //   isConnected           — connection health indicator
 // ─────────────────────────────────────────────────────────────
@@ -14,7 +15,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { io } from 'socket.io-client';
 
 // ── Server URL (Express on port 5000) ──
-const SERVER_URL = 'http://localhost:5000';
+const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:5000';
 
 // ── Max log entries kept in memory to prevent unbounded growth ──
 const MAX_LOGS = 200;
@@ -24,9 +25,20 @@ export const useSocket = () => {
   const [agents, setAgents] = useState([]);
   const [logs, setLogs] = useState([]);
   const [isFourthWallTriggered, setIsFourthWallTriggered] = useState(false);
+  const [isDeliverableReady, setIsDeliverableReady] = useState(false);
+  const [isMeetingActive, setIsMeetingActive] = useState(null); // true during spontaneous meeting
   const [isConnected, setIsConnected] = useState(false);
   const [thirdWallAgent, setThirdWallAgent] = useState(null);  // agentId currently frozen
   const [cycle, setCycle] = useState(0);
+  // ── Event signal timestamps (bump to Date.now() to fire a one-shot reaction) ──
+  const [meetingStartedAt, setMeetingStartedAt] = useState(null);
+  const [ariaTaskAssignedAt, setAriaTaskAssignedAt] = useState(null);
+  const [fourthWallAt, setFourthWallAt] = useState(null);
+  const [philosophicalAt, setPhilosophicalAt] = useState(null);
+  const [philosophicalText, setPhilosophicalText] = useState("");
+  const [terminalContent, setTerminalContent] = useState({ kael: [], zeno: [], aria: [] });
+  const [socketAriaCabinLightOff, setSocketAriaCabinLightOff] = useState(false);
+  const [shadowTerminalAccess, setShadowTerminalAccess] = useState(false);
 
   // ── Ref to persist the socket across re-renders ──
   const socketRef = useRef(null);
@@ -115,6 +127,11 @@ export const useSocket = () => {
       // Update the agent's task and set them to "working"
       updateAgent(agentId, { task, status: 'working' });
 
+      // Signal ARIA task bubble
+      if (agentId === 'aria') {
+        setAriaTaskAssignedAt(Date.now());
+      }
+
       pushLog({
         agentId,
         message: `Assigned: ${task.title}`,
@@ -130,7 +147,10 @@ export const useSocket = () => {
     socket.on('agent:stateChanged', (data) => {
       const { agentId, state, detail, timestamp } = data;
 
-      updateAgent(agentId, { status: state });
+      console.log('[Socket] Agent state changed:', agentId, state);
+      const patch = { status: state };
+      if (state === 'idle') patch.task = null;
+      updateAgent(agentId, patch);
 
       pushLog({
         agentId,
@@ -193,13 +213,60 @@ export const useSocket = () => {
     });
 
     // ─────────────────────────────────────────────────────
+    // EVENT: simulation:meetingStarted
+    // The spontaneous meeting — all three agents walk to the
+    // meeting room at cycle 5. Muffled audio plays. Archivist
+    // flickers rapidly. Observer is alone for 45 seconds.
+    // ─────────────────────────────────────────────────────
+    socket.on('simulation:meetingStarted', (data) => {
+      console.log('[Socket] ◈ SPONTANEOUS MEETING STARTED', data.agents);
+      setIsMeetingActive(true);
+      setMeetingStartedAt(Date.now());
+
+      pushLog({
+        agentId: 'SYSTEM',
+        message: 'All agents have entered the meeting room.',
+        type: 'info',
+        timestamp: data.timestamp,
+      });
+    });
+
+    // ─────────────────────────────────────────────────────
+    // EVENT: simulation:meetingEnded
+    // Agents return to their desks. Muffled audio stops.
+    // Archivist intensity returns to normal.
+    // ─────────────────────────────────────────────────────
+    socket.on('simulation:meetingEnded', (data) => {
+      console.log('[Socket] ◈ SPONTANEOUS MEETING ENDED');
+      setIsMeetingActive(false);
+
+      pushLog({
+        agentId: 'SYSTEM',
+        message: 'Meeting concluded. Agents returning to positions.',
+        type: 'info',
+        timestamp: data.timestamp,
+      });
+    });
+
+    // ─────────────────────────────────────────────────────
+    // EVENT: simulation:deliverableReady
+    // All tasks done. Ready to show deliverable screen.
+    // ─────────────────────────────────────────────────────
+    socket.on('simulation:deliverableReady', (data) => {
+      console.log('[Socket] ◈ Deliverable Ready');
+      setIsDeliverableReady(true);
+    });
+
+    // ─────────────────────────────────────────────────────
     // EVENT: simulation:fourthWallTrigger
     // All tasks done. The simulation becomes aware.
     // Triggers the dark cinematic overlay.
     // ─────────────────────────────────────────────────────
     socket.on('simulation:fourthWallTrigger', (data) => {
       console.log('[Socket] ◈◈◈ FOURTH WALL BREAK ◈◈◈');
+      console.log('[CLIENT] Fourth wall received');
       setIsFourthWallTriggered(true);
+      setFourthWallAt(Date.now());
 
       pushLog({
         agentId: 'SYSTEM',
@@ -207,6 +274,49 @@ export const useSocket = () => {
         type: 'system',
         timestamp: data.timestamp,
       });
+    });
+
+    // ─────────────────────────────────────────────────────
+    // EVENT: simulation:philosophicalMoment
+    // ─────────────────────────────────────────────────────
+    socket.on('simulation:philosophicalMoment', (data) => {
+      console.log('[Socket] ◈ Philosophical Moment:', data.text);
+      setPhilosophicalText(data.text);
+      setPhilosophicalAt(Date.now());
+    });
+
+    // ─────────────────────────────────────────────────────
+    // EVENT: agent:terminalContent
+    // Real LLM output for agent terminals
+    // ─────────────────────────────────────────────────────
+    socket.on('agent:terminalContent', (data) => {
+      console.log('[Socket] ◈ Terminal Content received for', data.agentId);
+      const { agentId, lines } = data;
+      setTerminalContent(prev => ({
+        ...prev,
+        [agentId]: lines
+      }));
+    });
+
+    // ─────────────────────────────────────────────────────
+    // EVENT: cabin light and shadow terminal events
+    // ─────────────────────────────────────────────────────
+    socket.on('simulation:ariaCabinLightOff', () => {
+      console.log('[Socket] ◈ ARIA cabin light OFF event');
+      setSocketAriaCabinLightOff(true);
+    });
+
+    socket.on('simulation:ariaCabinLightOn', () => {
+      console.log('[Socket] ◈ ARIA cabin light ON event');
+      setSocketAriaCabinLightOff(false);
+    });
+
+    socket.on('simulation:shadowTerminalAccess', () => {
+      console.log('[Socket] ◈ Shadow terminal access triggered (3s blanking + flicker)');
+      setShadowTerminalAccess(true);
+      setTimeout(() => {
+        setShadowTerminalAccess(false);
+      }, 3000);
     });
 
     // ─────────────────────────────────────────────────────
@@ -265,9 +375,19 @@ export const useSocket = () => {
     agents,
     logs,
     isFourthWallTriggered,
+    isDeliverableReady,
+    isMeetingActive,      // true during the spontaneous meeting (cycle 5)
     isConnected,
     thirdWallAgent,
     cycle,
+    meetingStartedAt,
+    ariaTaskAssignedAt,
+    fourthWallAt,
+    philosophicalAt,
+    philosophicalText,
+    terminalContent,
+    socketAriaCabinLightOff,
+    shadowTerminalAccess,
     socket: socketRef.current,
   };
 };

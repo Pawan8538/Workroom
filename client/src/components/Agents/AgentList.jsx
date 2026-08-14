@@ -73,8 +73,14 @@ const AgentList = ({ agents = [] }) => {
               <div style={{ display: 'flex' }}>
                 <span style={{ width: '80px' }}>STATUS</span>
                 <span>: </span>
-                <span style={{ 
-                  color: agent.status === 'working' ? '#00f5ff' : '#888',
+                <span style={{
+                  color: agent.status === 'working'
+                    ? '#ff8a00'
+                    : agent.status === 'meeting'
+                      ? '#00f5ff'
+                      : agent.status === 'fourthwall'
+                        ? '#ff0055'
+                        : '#888',
                   textTransform: 'uppercase'
                 }}>
                   {agent.status || 'IDLE'}

@@ -31,8 +31,9 @@
 //
 // ─────────────────────────────────────────────────────────────
 
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
+import * as THREE from 'three';
 
 const TheIntern = ({ isMeetingActive, onDismiss }) => {
   // ── Once dismissed, gone forever (this session) ──
@@ -43,8 +44,15 @@ const TheIntern = ({ isMeetingActive, onDismiss }) => {
   // ── Force re-render after dismiss by using a state trigger ──
   const [_, setForceRender] = React.useState(0);
 
-  // ── Ref for opacity animation ──
-  const materialRef = useRef();
+  // ── Shared Material for all body parts ──
+  const internMaterial = useMemo(() => {
+    return new THREE.MeshStandardMaterial({
+      color: "#111111",
+      transparent: true,
+      opacity: 0.0,
+      depthWrite: false
+    });
+  }, []);
 
   // Console log on mount to confirm rendering
   useEffect(() => {
@@ -52,20 +60,18 @@ const TheIntern = ({ isMeetingActive, onDismiss }) => {
   }, [isMeetingActive]);
 
   // ── Target opacity based on meeting state ──
-  // 0.06 when visible — barely perceptible. A suggestion of form.
+  // 0.35 when visible — barely perceptible. A suggestion of form.
   // 0.0 when no meeting or dismissed.
-  const targetOpacity = (!dismissedRef.current && isMeetingActive) ? 0.06 : 0.0;
+  const targetOpacity = (!dismissedRef.current && isMeetingActive) ? 0.35 : 0.0;
 
   useFrame(() => {
-    if (materialRef.current) {
-      // Slow fade in, instant snap on dismiss
-      if (dismissedRef.current) {
-        materialRef.current.opacity = 0;
-      } else {
-        // Gradual approach — takes ~2 seconds to fully materialize
-        materialRef.current.opacity +=
-          (targetOpacity - materialRef.current.opacity) * 0.02;
-      }
+    // Slow fade in, instant snap on dismiss
+    if (dismissedRef.current) {
+      internMaterial.opacity = 0;
+    } else {
+      // Gradual approach — takes ~5 seconds to fully materialize
+      internMaterial.opacity +=
+        (targetOpacity - internMaterial.opacity) * 0.008;
     }
   });
 
@@ -102,35 +108,48 @@ const TheIntern = ({ isMeetingActive, onDismiss }) => {
   };
 
   return (
-    <group position={[0, 0, -15]}>
+    // Changed group origin to ground level (Y=0) to support scale={0.6} body
+    <group position={[1.5, 0, -6.5]}>
       {/* ── The silhouette ──────────────────────────────── */}
-      {/* Positioned at the back wall of the meeting room.   */}
-      {/* Tall, thin, perfectly still. No animation.         */}
-      {/* The mesh is slightly offset from center — it is    */}
-      {/* not sitting at the table. It is standing behind.   */}
-      <mesh
-        position={[5.5, 1.0, -2.8]}
+      {/* Full body figure mimicking AgentDot structure */}
+      <group
+        scale={0.6}
         onClick={handleClick}
+        renderOrder={10}
       >
-        <cylinderGeometry args={[0.12, 0.18, 1.5, 8]} />
-        <meshBasicMaterial
-          ref={materialRef}
-          color="#000000"
-          transparent
-          opacity={0.0}
-          depthWrite={false}
-        />
-      </mesh>
+        {/* Head */}
+        <mesh position={[0, 2.1, 0]} material={internMaterial}>
+          <boxGeometry args={[0.4, 0.4, 0.4]} />
+        </mesh>
+        {/* Torso */}
+        <mesh position={[0, 1.4, 0]} material={internMaterial}>
+          <boxGeometry args={[0.6, 0.8, 0.3]} />
+        </mesh>
+        {/* Left Leg */}
+        <mesh position={[-0.18, 0.5, 0]} material={internMaterial}>
+          <boxGeometry args={[0.2, 1.0, 0.25]} />
+        </mesh>
+        {/* Right Leg */}
+        <mesh position={[0.18, 0.5, 0]} material={internMaterial}>
+          <boxGeometry args={[0.2, 1.0, 0.25]} />
+        </mesh>
+        {/* Left Arm */}
+        <mesh position={[-0.4, 1.4, 0]} material={internMaterial}>
+          <boxGeometry args={[0.18, 0.7, 0.2]} />
+        </mesh>
+        {/* Right Arm */}
+        <mesh position={[0.4, 1.4, 0]} material={internMaterial}>
+          <boxGeometry args={[0.18, 0.7, 0.2]} />
+        </mesh>
+      </group>
 
       {/* ── Ground shadow ──────────────────────────────── */}
-      {/* A faint oval beneath the figure. It persists for   */}
-      {/* a fraction of a second after the figure vanishes,  */}
-      {/* because the material ref is separate. This creates */}
-      {/* a "was something standing here?" moment.           */}
+      {/* Persists at the floor level (Y = 0.01 to avoid z-fighting) */}
       {!dismissedRef.current && (
         <mesh
-          position={[5.5, 0.01, -2.8]}
+          position={[0, 0.01, 0]}
           rotation={[-Math.PI / 2, 0, 0]}
+          renderOrder={10}
         >
           <circleGeometry args={[0.3, 16]} />
           <meshBasicMaterial
@@ -138,6 +157,7 @@ const TheIntern = ({ isMeetingActive, onDismiss }) => {
             transparent
             opacity={isMeetingActive ? 0.03 : 0.0}
             depthWrite={false}
+            depthTest={false}
           />
         </mesh>
       )}

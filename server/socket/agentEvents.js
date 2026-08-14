@@ -3,23 +3,36 @@
 // All real-time agent event handlers for the Workroom simulation
 // ─────────────────────────────────────────────────────────────
 // Events handled:
-//   agent:taskAssigned      — an agent receives a new task
-//   agent:stateChanged      — agent transitions between states
-//   agent:logEntry          — agent pushes a message to the live feed
-//   agent:meetingStarted    — two agents walk to the meeting room
-//   agent:meetingEnded      — agents return to their desks
-//   simulation:fourthWallTrigger — all tasks done, break the fourth wall
+//   agent:taskAssigned              — an agent receives a new task
+//   agent:stateChanged              — agent transitions between states
+//   agent:logEntry                  — agent pushes a message to the live feed
+//   agent:meetingStarted            — two agents walk to the meeting room
+//   agent:meetingEnded              — agents return to their desks
+//   simulation:meetingStarted       — spontaneous all-agent meeting (cycle 5)
+//   simulation:meetingEnded         — spontaneous meeting concludes (45s later)
+//   simulation:fourthWallTrigger    — all tasks done, break the fourth wall
 // ─────────────────────────────────────────────────────────────
 
 // ── Agent desk positions (home base they return to after meetings) ──
 const DESK_POSITIONS = {
   aria: { x: -8, y: -4 },
   kael: { x: 0, y: 0 },
-  zeno: { x: 8, y: 4 },
+  zeno: { x: 6, y: -4 },
 };
 
 // ── Meeting room position (top center of the office canvas) ──
 const MEETING_ROOM = { x: 0, y: -15 };
+
+// ── Meeting room positions for the spontaneous 3-agent meeting ──
+// Each agent gets a staggered seat in the meeting room
+const MEETING_POSITIONS = {
+  aria: { x: -1, y: -5 },
+  kael: { x: 0,  y: -5 },
+  zeno: { x: 1,  y: -5 },
+};
+
+// ── Duration of the spontaneous meeting in milliseconds ──
+const SPONTANEOUS_MEETING_DURATION = 45000;
 
 /**
  * handleAgentEvents — called once per socket connection
@@ -63,6 +76,9 @@ export const handleAgentEvents = (io, socket) => {
   // ─────────────────────────────────────────────────────────
   socket.on('agent:stateChanged', (data) => {
     const { agentId, state, detail } = data;
+    const agentName = agentId;
+    const status = state;
+    console.log('[SOCKET] Agent status update:', agentName, status);
 
     console.log(`[AgentEvent] ${agentId} → ${state}${detail ? ` (${detail})` : ''}`);
 
@@ -189,6 +205,7 @@ export const handleAgentEvents = (io, socket) => {
   // ─────────────────────────────────────────────────────────
   socket.on('simulation:fourthWallTrigger', (data) => {
     const reason = data?.reason || 'All tasks completed. The simulation is aware.';
+    console.log('[SOCKET] Fourth wall triggered');
 
     console.log(`[AgentEvent] ◈◈◈ FOURTH WALL BREAK ◈◈◈ — ${reason}`);
 
@@ -197,12 +214,128 @@ export const handleAgentEvents = (io, socket) => {
       timestamp: new Date().toISOString(),
     });
 
-    // Push a system log visible to all
     io.emit('agent:logEntry', {
       agentId: 'SYSTEM',
       message: reason,
       type: 'system',
       timestamp: new Date().toISOString(),
     });
+  });
+
+  // ─────────────────────────────────────────────────────────
+  // EVENT: simulation:triggerFourthWall
+  // Emitted by the client (App.jsx) when the terminal closes.
+  // ─────────────────────────────────────────────────────────
+  socket.on('simulation:triggerFourthWall', (data) => {
+    const reason = 'All tasks completed. The simulation is aware.';
+    console.log('[SOCKET] Fourth wall triggered by client');
+
+    console.log(`[AgentEvent] ◈◈◈ FOURTH WALL BREAK ◈◈◈ — ${reason}`);
+
+    io.emit('simulation:fourthWallTrigger', {
+      reason,
+      timestamp: new Date().toISOString(),
+    });
+
+    io.emit('agent:logEntry', {
+      agentId: 'SYSTEM',
+      message: reason,
+      type: 'system',
+      timestamp: new Date().toISOString(),
+    });
+  });
+};
+
+// ─────────────────────────────────────────────────────────────
+// SPONTANEOUS MEETING — triggered by the cycle system in index.js
+// ─────────────────────────────────────────────────────────────
+// At cycle 5, all three agents walk to the meeting room together.
+// Muffled audio plays on the client. Archivist flickers rapidly.
+// After 45 seconds agents return to their territory home positions.
+// Observer never learns what was discussed. It was about them.
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * startSpontaneousMeeting — called from index.js when cycle === 5
+ * @param {import('socket.io').Server} io — broadcast to all clients
+ * @param {import('socket.io').Socket} socket — the individual connection
+ * @returns {NodeJS.Timeout} — the meeting end timer (for cleanup on disconnect)
+ */
+export const startSpontaneousMeeting = (io, socket) => {
+  const agentIds = ['aria', 'kael', 'zeno'];
+  const agentNames = ['ARIA', 'KAEL', 'ZENO'];
+
+  console.log(`[AgentEvent] ◈ SPONTANEOUS MEETING started for ${socket.id}`);
+
+  // ── Set all agents to "meeting" state ──
+  agentIds.forEach((agentId) => {
+    io.emit('agent:stateChanged', {
+      agentId,
+      state: 'meeting',
+      detail: 'Spontaneous alignment meeting',
+      timestamp: new Date().toISOString(),
+    });
+
+    // Move each agent to their meeting room seat
+    io.emit('agent:positionUpdate', {
+      agentId,
+      position: MEETING_POSITIONS[agentId],
+      timestamp: new Date().toISOString(),
+    });
+  });
+
+  // ── Emit the simulation-level meeting event to all clients ──
+  // This is the event useSocket listens for to set isMeetingActive
+  io.emit('simulation:meetingStarted', {
+    agents: agentNames,
+    duration: SPONTANEOUS_MEETING_DURATION,
+    timestamp: new Date().toISOString(),
+  });
+
+  // ── Log entry visible in the feed ──
+  io.emit('agent:logEntry', {
+    agentId: 'SYSTEM',
+    message: 'Agents convened in meeting room. Muffled voices behind glass.',
+    type: 'info',
+    timestamp: new Date().toISOString(),
+  });
+};
+
+export const endSpontaneousMeeting = (io, socket) => {
+  const agentIds = ['aria', 'kael', 'zeno'];
+  const agentNames = ['ARIA', 'KAEL', 'ZENO'];
+
+  console.log(`[AgentEvent] ◈ SPONTANEOUS MEETING ended for ${socket.id}`);
+
+  // Return all agents to idle state and their home desks
+  agentIds.forEach((agentId) => {
+    const deskPos = DESK_POSITIONS[agentId] || { x: 0, y: 0 };
+
+    io.emit('agent:stateChanged', {
+      agentId,
+      state: 'idle',
+      detail: null,
+      timestamp: new Date().toISOString(),
+    });
+
+    io.emit('agent:positionUpdate', {
+      agentId,
+      position: deskPos,
+      timestamp: new Date().toISOString(),
+    });
+  });
+
+  // ── Emit the simulation-level meeting-ended event ──
+  io.emit('simulation:meetingEnded', {
+    agents: agentNames,
+    timestamp: new Date().toISOString(),
+  });
+
+  // ── Post-meeting log: ARIA's response per masterplan ──
+  io.emit('agent:logEntry', {
+    agentId: 'aria',
+    message: 'Noted. Continuing as planned.',
+    type: 'info',
+    timestamp: new Date().toISOString(),
   });
 };

@@ -1,7 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 const AgentLog = ({ logs = [] }) => {
   const [injectedTraces, setInjectedTraces] = useState([]);
+  const logsEndRef = useRef(null);
+
+  // Auto-scroll to the latest log entry whenever logs update
+  useEffect(() => {
+    logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [logs]);
 
   // Inject observer trace every 45 seconds
   useEffect(() => {
@@ -56,7 +62,7 @@ const AgentLog = ({ logs = [] }) => {
           prefix = '[ALERT]';
         } else if (log.type === 'shadow') {
           color = '#880000'; // dark red
-          prefix = '[ALERT]';
+          prefix = log.agentId ? `[${log.agentId}]` : '[ALERT]';
           msgColor = '#880000';
         } else if (log.type === 'trace') {
           color = '#222'; // extremely faint
@@ -71,6 +77,7 @@ const AgentLog = ({ logs = [] }) => {
           </div>
         );
       })}
+      <div ref={logsEndRef} />
     </div>
   );
 };

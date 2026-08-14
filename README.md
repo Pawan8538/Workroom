@@ -1,2 +1,1 @@
-# Workroom
-A private multi-agent simulation.
+Something worth spending time.

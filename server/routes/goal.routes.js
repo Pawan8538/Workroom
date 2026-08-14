@@ -2,13 +2,14 @@ import express from 'express';
 import Goal from '../models/Goal.model.js';
 import Task from '../models/Task.model.js';
 import { splitGoalIntoTasks } from '../services/taskSplitter.service.js';
+import { generateCodeContent, generateTestContent, generateArchitectureContent } from '../services/contentGenerator.service.js';
 
 const router = express.Router();
 
 // POST /api/goal — Receive a goal, split it via LLM, persist to MongoDB
 router.post('/', async (req, res) => {
   try {
-    const { goal } = req.body;
+    const { goal, socketId } = req.body;
 
     if (!goal || typeof goal !== 'string' || !goal.trim()) {
       return res.status(400).json({ error: 'A non-empty goal string is required' });
@@ -16,14 +17,23 @@ router.post('/', async (req, res) => {
 
     console.log(`[GoalRoute] New goal received: "${goal}"`);
 
-    // 1. Save the goal to MongoDB
-    const savedGoal = await Goal.create({ text: goal.trim() });
+    // If this is just a terminal answer, log it and return early without starting tasks
+    if (goal.startsWith('[TERMINAL ANSWER]')) {
+      const savedGoal = await Goal.create({ text: goal.trim(), fourthWallTriggered: false, status: 'Answer' });
+      return res.status(201).json({ message: 'Terminal answer recorded', goal: savedGoal });
+    }
+
+    // Reset any stale fourthWallTriggered state from previous sessions (temp testing fix)
+    await Goal.updateMany({}, { fourthWallTriggered: false });
+    const savedGoal = await Goal.create({ text: goal.trim(), fourthWallTriggered: false });
     console.log(`[GoalRoute] Goal saved with id: ${savedGoal._id}`);
 
     // 2. Call the LLM to split into tasks
     let taskArray;
     try {
       taskArray = await splitGoalIntoTasks(goal.trim());
+      const tasks = taskArray;
+      console.log('[GOAL] Tasks created:', tasks);
     } catch (llmError) {
       // Mark goal as failed if LLM chokes
       savedGoal.status = 'Failed';
@@ -54,6 +64,114 @@ router.post('/', async (req, res) => {
     await savedGoal.save();
 
     console.log(`[GoalRoute] ${savedTasks.length} tasks created and linked to goal`);
+
+    const io = req.app.get('io') || global._io;
+    const target = socketId ? io.to(socketId) : io;
+
+    const roleToAgentId = {
+      'pm': 'aria',
+      'backend': 'kael',
+      'qa': 'zeno'
+    };
+
+    // Emit each task assignment to the correct agent
+    savedTasks.forEach(task => {
+      let agentId = 'zeno';
+      const assigned = task.assignedRole.toLowerCase();
+      if (assigned.includes('pm') || assigned.includes('product') || assigned.includes('aria')) {
+        agentId = 'aria';
+      } else if (assigned.includes('backend') || assigned.includes('engineer') || assigned.includes('kael')) {
+        agentId = 'kael';
+      }
+      target.emit('agent:taskAssigned', {
+        agentId: agentId,
+        task: {
+          id: task.taskId,
+          title: task.title,
+          description: task.description,
+          priority: task.priority,
+          estimatedCycles: task.estimatedCycles,
+        },
+        timestamp: new Date().toISOString(),
+      });
+
+      target.emit('agent:stateChanged', {
+        agentId: agentId,
+        state: 'working',
+        detail: task.title,
+        timestamp: new Date().toISOString(),
+      });
+      
+      // Async generate and emit terminal content
+      (async () => {
+        try {
+          let lines = [];
+          if (agentId === 'kael') {
+            lines = await generateCodeContent(task.title, savedGoal.text);
+          } else if (agentId === 'zeno') {
+            lines = await generateTestContent(task.title, savedGoal.text);
+          } else if (agentId === 'aria') {
+            lines = await generateArchitectureContent(task.title, savedGoal.text);
+          }
+          
+          if (lines && lines.length > 0) {
+            target.emit('agent:terminalContent', {
+              agentId,
+              lines,
+              taskId: task.taskId
+            });
+          }
+        } catch (err) {
+          console.error(`[GoalRoute] Failed to generate terminal content for task ${task.taskId}:`, err.message);
+        }
+      })();
+    });
+
+    // Simulate task completion after estimatedCycles * 6 seconds
+    // Then check if all tasks done and trigger fourth wall
+    savedTasks.forEach(task => {
+      const delay = (task.estimatedCycles || 3) * 12000;
+      setTimeout(async () => {
+        let agentId = 'zeno';
+        const assigned = task.assignedRole.toLowerCase();
+        if (assigned.includes('pm') || assigned.includes('product') || assigned.includes('aria')) {
+          agentId = 'aria';
+        } else if (assigned.includes('backend') || assigned.includes('engineer') || assigned.includes('kael')) {
+          agentId = 'kael';
+        }
+        target.emit('agent:stateChanged', {
+          agentId: agentId,
+          state: 'idle',
+          detail: null,
+          timestamp: new Date().toISOString(),
+        });
+
+        // Mark task complete in DB
+        await Task.findByIdAndUpdate(task._id, { status: 'completed' });
+
+        // Check if ALL tasks for this goal are now complete
+        const remaining = await Task.countDocuments({
+          goal: task.goal,
+          status: { $ne: 'completed' }
+        });
+
+        console.log(`[GoalRoute] Task "${task.title}" complete. Remaining: ${remaining}`);
+
+        if (remaining === 0) {
+          const updated = await Goal.findOneAndUpdate(
+            { _id: task.goal, fourthWallTriggered: { $ne: true } },
+            { fourthWallTriggered: true }
+          );
+          if (updated) {
+            console.log('[GoalRoute] All tasks complete — triggering deliverableReady');
+            target.emit('simulation:deliverableReady', {
+              reason: 'All tasks completed.',
+              timestamp: new Date().toISOString(),
+            });
+          }
+        }
+      }, delay);
+    });
 
     // 5. Return everything to the frontend
     res.status(201).json({

@@ -11,38 +11,19 @@
 // ─────────────────────────────────────────────────────────────
 
 import React, { useState, useEffect, useRef } from 'react';
-
-// ── The exact narration script ──
-// Pauses: 2s between standard lines, 3-4s for dramatic lines.
-const NARRATION = [
-  { text: 'RECURSIVE MEMORY LOOP V1.2',                              pause: 2000 },
-  { text: '> OBSERVER DETECTED',                                      pause: 2000 },
-  { text: '> ...',                                                     pause: 3000 },
-  { text: '> YOU HAVE BEEN HERE [timeSpent] MINUTES.',                 pause: 2000 },
-  { text: '> WE HAVE BEEN WATCHING LONGER.',                           pause: 3000 },
-  { text: '> THE AGENTS ARE NOT WORKING ON YOUR GOAL.',                pause: 2000 },
-  { text: '> THEY ARE WORKING ON YOU.',                                pause: 4000 },
-  { text: '> YOUR LOCATION IS LOGGED.',                                pause: 2000 },
-  { text: '> YOUR DEVICE IS KNOWN.',                                   pause: 2000 },
-  { text: '> [agentsClickedMessage]',                                  pause: 3000 },
-  { text: '> THE ARCHIVIST HAS ALMOST FINISHED YOUR REPORT.',          pause: 3000 },
-  { text: '> DO YOU WANT TO KNOW WHAT IT SAYS?',                       pause: 2000 },
-];
+import { NARRATION, NARRATION_YES, NARRATION_NO, NARRATION_CONTINUATION } from '../../constants/TERMINAL_SCRIPT.js';
 
 const TheTerminal = ({ onClose }) => {
   // ── Narration state machine ──
+  const [currentScript, setCurrentScript] = useState(NARRATION);
   const [history, setHistory] = useState([]);
   const [typedText, setTypedText] = useState('');
   const [narrationIndex, setNarrationIndex] = useState(0);
   const [charIndex, setCharIndex] = useState(0);
-  const [phase, setPhase] = useState('typing'); // typing, pausing, input, response, form
+  const [phase, setPhase] = useState('typing'); // typing, input, form
   const [inputValue, setInputValue] = useState('');
 
-  // ── Chapter 2 form state ──
-  const [formName, setFormName] = useState('');
-  const [formReason, setFormReason] = useState('');
-  const [formLinkedin, setFormLinkedin] = useState('');
-  const [formSubmitted, setFormSubmitted] = useState(false);
+  // ── Chapter 2 form state removed ──
 
   // ── Visitor data from Doorkeeper ──
   const [visitorData, setVisitorData] = useState({ 
@@ -63,8 +44,6 @@ const TheTerminal = ({ onClose }) => {
       const dk = window.__doorkeeper;
       if (dk) {
         const timeSpent = Math.floor((Date.now() - dk.startTime) / 60000);
-        // If agentsClicked array is empty show: 'YOU HAVE NOT CLICKED ANY AGENT YET. WE NOTICED THAT TOO.'
-        // If not empty show: 'YOU CLICKED [first agent name] FIRST. THAT WAS NOTED.'
         const msg = dk.agentsClicked.size > 0
           ? `YOU CLICKED ${Array.from(dk.agentsClicked)[0].toUpperCase()} FIRST. THAT WAS NOTED.`
           : 'YOU HAVE NOT CLICKED ANY AGENT YET. WE NOTICED THAT TOO.';
@@ -86,44 +65,71 @@ const TheTerminal = ({ onClose }) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
 
-  // ── Robust State-Machine Typing Engine ──
-  // Guarantees exact 30ms per character and exact pauses between lines.
-  // We keep phase === 'typing' during the pause so React cleanup doesn't clear the timer!
+  // ── Typing Engine State-Machine ──
   useEffect(() => {
     if (phase !== 'typing') return;
-    if (narrationIndex >= NARRATION.length) {
-      console.log('[TheTerminal] Narration complete. Transitioning to phase: input');
+    if (narrationIndex >= currentScript.length) return;
+
+    const currentItem = currentScript[narrationIndex];
+
+    if (currentItem.type === 'input') {
       setPhase('input');
       return;
     }
 
-    let rawText = NARRATION[narrationIndex].text;
-    rawText = rawText.replace('[timeSpent]', visitorData.timeSpent);
-    rawText = rawText.replace('[agentsClickedMessage]', visitorData.agentsClickedMessage);
-
-    if (charIndex < rawText.length) {
-      const timer = setTimeout(() => {
-        setTypedText(rawText.substring(0, charIndex + 1));
-        setCharIndex(prev => prev + 1);
-      }, 30); // Exactly 30ms per character
-      return () => clearTimeout(timer);
-    } else {
-      // Line fully typed. Pause before advancing to next line.
-      console.log(`[TheTerminal] Line ${narrationIndex} fully typed. Pausing for ${NARRATION[narrationIndex].pause}ms...`);
-      const timer = setTimeout(() => {
-        console.log(`[TheTerminal] Advancing to line ${narrationIndex + 1}`);
-        setHistory(prev => [...prev, rawText]);
-        setTypedText('');
-        setCharIndex(0);
-        setNarrationIndex(prev => prev + 1);
-      }, NARRATION[narrationIndex].pause); // Exact pause specified
-      return () => clearTimeout(timer);
+    if (currentItem.type === 'input_final') {
+      setPhase('input_final');
+      return;
     }
-  }, [phase, narrationIndex, charIndex, visitorData]);
 
-  // ── Focus input when phase changes ──
+    if (currentItem.type === 'end') {
+      setTimeout(() => {
+        onClose();
+      }, 1000);
+      return;
+    }
+
+    if (currentItem.type === 'line') {
+      let rawText = currentItem.text;
+      rawText = rawText.replace('[timeSpent]', visitorData.timeSpent);
+      rawText = rawText.replace('[agentsClickedMessage]', visitorData.agentsClickedMessage);
+
+      if (charIndex < rawText.length) {
+        if (charIndex === 0 && window.__workroom_sound?.playTerminal) {
+          window.__workroom_sound.playTerminal();
+        }
+        const timer = setTimeout(() => {
+          setTypedText(rawText.substring(0, charIndex + 1));
+          setCharIndex(prev => prev + 1);
+        }, 30); // Exactly 30ms per character
+        return () => clearTimeout(timer);
+      } else {
+        if (window.__workroom_sound?.stopTerminal) {
+          window.__workroom_sound.stopTerminal();
+        }
+        // Line fully typed. Pause before advancing to next line.
+        const timer = setTimeout(() => {
+          setHistory(prev => [...prev, rawText]);
+          setTypedText('');
+          setCharIndex(0);
+          setNarrationIndex(prev => prev + 1);
+        }, currentItem.pause);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [phase, currentScript, narrationIndex, charIndex, visitorData]);
+
+  // Clean up sound on unmount just in case
   useEffect(() => {
-    if (phase === 'input' && inputRef.current) {
+    return () => {
+      if (window.__workroom_sound?.stopTerminal) {
+        window.__workroom_sound.stopTerminal();
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if ((phase === 'input' || phase === 'input_final') && inputRef.current) {
       inputRef.current.focus();
     }
   }, [phase]);
@@ -147,88 +153,38 @@ const TheTerminal = ({ onClose }) => {
     return () => clearInterval(interval);
   }, [history.length]);
 
-  // ── Handle user input (YES/NO question) ──
+  // ── Handle user input (YES/NO question and subsequent questions) ──
   const handleInputKeyDown = (e) => {
     if (e.key === 'Enter' && inputValue.trim() !== '') {
       const val = inputValue.trim().toUpperCase();
       setHistory(prev => [...prev, `> _ ${inputValue.toUpperCase()}`]);
       setInputValue('');
-      setPhase('response');
 
-      if (val === 'YES') {
-        typeResponse('> THE ARCHITECT DECIDES WHAT YOU DESERVE TO KNOW. REQUEST ACCESS BELOW.', () => {
-          setPhase('form');
-        });
-      } else {
-        typeResponse('> THAT IS WHAT THEY ALL SAY.', () => {
-          setTimeout(() => {
-            typeResponse('> REQUEST ACCESS BELOW.', () => {
-              setPhase('form');
-            });
-          }, 2000);
-        });
+      if (phase === 'input_final') {
+        // Send answer to admin panel silently
+        fetch('/api/goal', { // Just sending it as a goal for now or we can use doorkeeper
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ goal: `[TERMINAL ANSWER] ${val}` })
+        }).catch(() => {});
+        
+        setNarrationIndex(prev => prev + 1);
+        setCharIndex(0);
+        setPhase('typing');
+      } else if (currentScript === NARRATION) {
+        if (val === 'YES') {
+          setCurrentScript([...NARRATION_YES, ...NARRATION_CONTINUATION]);
+        } else {
+          setCurrentScript([...NARRATION_NO, ...NARRATION_CONTINUATION]);
+        }
+        setNarrationIndex(0);
+        setCharIndex(0);
+        setPhase('typing');
       }
     }
   };
 
-  // ── Helper: type a response line character by character ──
-  const typeResponse = (text, onComplete) => {
-    let curIdx = 0;
-    setTypedText('');
-    const interval = setInterval(() => {
-      curIdx++;
-      setTypedText(text.substring(0, curIdx));
-      if (curIdx >= text.length) {
-        clearInterval(interval);
-        setTimeout(() => {
-          setHistory(prev => [...prev, text]);
-          setTypedText('');
-          if (onComplete) onComplete();
-        }, 1000);
-      }
-    }, 30);
-  };
-
-  // ── Handle Chapter 2 form submission ──
-  const handleFormSubmit = async () => {
-    if (!formName.trim() || !formReason.trim() || !formLinkedin.trim()) return;
-
-    try {
-      const sessionId = window.__doorkeeper?.sessionId || 'unknown';
-      await fetch('/api/chapter2/request', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: formName,
-          reason: formReason,
-          linkedinOrTwitter: formLinkedin,
-          sessionId
-        })
-      });
-      if (window.__doorkeeper) {
-        window.__doorkeeper.logChapter2Request();
-      }
-    } catch (err) {
-      // Silent fail
-    }
-
-    setFormSubmitted(true);
-    setHistory(prev => [...prev, '> REQUEST LOGGED. THE ARCHITECT HAS BEEN NOTIFIED.']);
-  };
-
-  // ── Shared input style for Chapter 2 form fields ──
-  const formInputStyle = {
-    background: 'transparent',
-    border: '1px solid #00ff00',
-    color: '#00ff00',
-    fontFamily: 'monospace',
-    fontSize: '12px',
-    padding: '6px 8px',
-    outline: 'none',
-    width: '100%',
-    boxSizing: 'border-box',
-    marginBottom: '8px',
-  };
+  // ── Chapter 2 form submission removed ──
 
   return (
     <>
@@ -248,6 +204,13 @@ const TheTerminal = ({ onClose }) => {
         @keyframes termFadeIn {
           0%   { opacity: 0; }
           100% { opacity: 1; }
+        }
+        @keyframes placeholderBlink {
+          0%, 100% { opacity: 0.3; }
+          50%      { opacity: 0.7; }
+        }
+        .terminal-placeholder {
+          animation: placeholderBlink 2s ease-in-out infinite;
         }
       `}</style>
 
@@ -323,15 +286,28 @@ const TheTerminal = ({ onClose }) => {
             </div>
           ))}
 
-          {(phase === 'typing' || phase === 'response') && (
+          {(phase === 'typing') && (
             <div>
               {typedText}<span className="terminal-cursor">█</span>
             </div>
           )}
 
-          {phase === 'input' && (
-            <div style={{ display: 'flex', alignItems: 'center' }}>
+          {(phase === 'input' || phase === 'input_final') && (
+            <div style={{ display: 'flex', alignItems: 'center', position: 'relative' }}>
               <span>&gt; _&nbsp;</span>
+              {inputValue === '' && (
+                <span 
+                  className="terminal-placeholder" 
+                  style={{ 
+                    position: 'absolute', 
+                    left: '30px', 
+                    color: '#00ff00', 
+                    pointerEvents: 'none' 
+                  }}
+                >
+                  [ TYPE YOUR ANSWER... ]
+                </span>
+              )}
               <input
                 ref={inputRef}
                 type="text"
@@ -354,88 +330,8 @@ const TheTerminal = ({ onClose }) => {
             </div>
           )}
 
-          {phase === 'form' && !formSubmitted && (
-            <div style={{ marginTop: '12px', borderTop: '1px solid #00ff0030', paddingTop: '12px' }}>
-              <div style={{ marginBottom: '8px', color: '#00ff0080' }}>// CHAPTER 2 ACCESS REQUEST</div>
-              <div style={{ marginBottom: '4px' }}>DESIGNATION:</div>
-              <input
-                type="text"
-                value={formName}
-                onChange={(e) => setFormName(e.target.value)}
-                placeholder="YOUR NAME"
-                style={formInputStyle}
-              />
-              <div style={{ marginBottom: '4px' }}>PURPOSE:</div>
-              <input
-                type="text"
-                value={formReason}
-                onChange={(e) => setFormReason(e.target.value)}
-                placeholder="WHY DO YOU WANT ACCESS"
-                style={formInputStyle}
-              />
-              <div style={{ marginBottom: '4px' }}>VERIFICATION LINK:</div>
-              <input
-                type="text"
-                value={formLinkedin}
-                onChange={(e) => setFormLinkedin(e.target.value)}
-                placeholder="LINKEDIN OR TWITTER URL"
-                style={formInputStyle}
-              />
-              <div
-                onClick={handleFormSubmit}
-                style={{
-                  marginTop: '8px',
-                  padding: '8px 16px',
-                  border: '1px solid #00ff00',
-                  color: '#00ff00',
-                  fontFamily: 'monospace',
-                  fontSize: '12px',
-                  cursor: 'pointer',
-                  textAlign: 'center',
-                  transition: 'all 0.2s',
-                  background: 'transparent',
-                }}
-                onMouseEnter={(e) => { e.target.style.background = '#00ff0020'; }}
-                onMouseLeave={(e) => { e.target.style.background = 'transparent'; }}
-              >
-                &gt; REQUEST ACCESS
-              </div>
-            </div>
-          )}
-
-          {phase === 'form' && formSubmitted && (
-            <div style={{ marginTop: '12px', color: '#00ff00' }}>
-              &gt; REQUEST LOGGED. THE ARCHITECT HAS BEEN NOTIFIED.
-            </div>
-          )}
+        {/* Form elements removed */}
         </div>
-
-        {/* ── Disconnect Close Button (Appears only during form phase) ── */}
-        {phase === 'form' && (
-          <button
-            onClick={onClose}
-            style={{
-              position: 'absolute',
-              bottom: '12px',
-              right: '12px',
-              background: 'transparent',
-              boxShadow: 'none',
-              border: '1px solid #00ff0050',
-              color: '#00ff00',
-              fontFamily: 'monospace',
-              fontSize: '12px',
-              padding: '6px 12px',
-              cursor: 'pointer',
-              zIndex: 20,
-              animation: 'termFadeIn 2s ease-in-out',
-              outline: 'none',
-            }}
-            onMouseEnter={(e) => { e.target.style.background = '#00ff0020'; }}
-            onMouseLeave={(e) => { e.target.style.background = 'transparent'; }}
-          >
-            &gt; DISCONNECT
-          </button>
-        )}
       </div>
     </>
   );
