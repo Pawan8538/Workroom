@@ -47,7 +47,8 @@ export const useDoorkeeper = () => {
           };
 
           try {
-            await fetch('http://localhost:5000/api/doorkeeper/track', {
+            const serverUrl = import.meta.env.VITE_SERVER_URL || 'http://localhost:5000';
+            await fetch(`${serverUrl}/api/doorkeeper/track`, {
               method: 'POST',
               headers: { 
                 'Content-Type': 'application/json',
