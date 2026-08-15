@@ -22,7 +22,8 @@ export default function ChapterTwo({ onSubmitForm }) {
 
     try {
       const sessionId = window.__doorkeeper?.sessionId || 'sess_' + Math.random().toString(36).substr(2, 9);
-      await fetch('http://localhost:5000/api/chapter2/request', {
+      const serverUrl = import.meta.env.VITE_SERVER_URL || 'http://localhost:5000';
+      await fetch(`${serverUrl}/api/chapter2/request`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: formData.name, role: formData.role, whatBuilding: formData.company, linkedin: formData.linkedin, sessionId })
