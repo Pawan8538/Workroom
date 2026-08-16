@@ -36,6 +36,7 @@ app.use(visitorTracker);
 app.use('/api/goal', goalRoutes);
 app.use('/api/agents', agentRoutes);
 app.use('/api/chapter2', chapter2Routes);
+app.get('/health', (req, res) => res.status(200).send('OK'));
 app.use('/', doorkeeperRoutes);
 
 // Socket.io
